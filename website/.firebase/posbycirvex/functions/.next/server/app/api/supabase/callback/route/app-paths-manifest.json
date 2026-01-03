@@ -1,0 +1,3 @@
+{
+  "/api/supabase/callback/route": "app/api/supabase/callback/route.js"
+}

@@ -1,0 +1,162 @@
+import { useState, useEffect } from 'react';
+import { Modal, ModalBody, ModalFooter } from '../ui/Modal';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { toast } from '../ui/Toast';
+import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+
+export default function AddSupplierInvoiceModal({ isOpen, onClose, onComplete, purchaseOrder }) {
+    const [formData, setFormData] = useState({
+        invoice_number: '',
+        invoice_date: new Date().toISOString().split('T')[0],
+        due_date: '',
+        subtotal: 0,
+        tax_amount: 0,
+        total_amount: 0,
+        notes: ''
+    });
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && purchaseOrder) {
+            // Auto-populate with expected amounts from PO
+            setFormData({
+                invoice_number: '',
+                invoice_date: new Date().toISOString().split('T')[0],
+                due_date: purchaseOrder.expected_date ? purchaseOrder.expected_date.split('T')[0] : '',
+                subtotal: purchaseOrder.subtotal || 0,
+                tax_amount: purchaseOrder.tax_amount || 0,
+                total_amount: purchaseOrder.total || 0,
+                notes: ''
+            });
+        }
+    }, [isOpen, purchaseOrder]);
+
+    const handleSubmit = async () => {
+        if (!formData.invoice_number) return toast.error('Invoice Number is required');
+
+        setLoading(true);
+        try {
+            const result = await window.electronAPI.purchaseOrders.addInvoice({
+                purchase_order_id: purchaseOrder.id,
+                ...formData
+            });
+
+            if (result.match_status === 'matched') {
+                toast.success('Invoice Added & Matched');
+            } else {
+                toast.error('Invoice Added but MISMATCHED with PO');
+            }
+            onComplete();
+            onClose();
+        } catch (error) {
+            console.error('Invoice Error:', error);
+            toast.error('Failed to add invoice');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Calculate match status on the fly for UI feedback
+    const getMatchStatus = () => {
+        if (!purchaseOrder) return 'neutral';
+        const diff = Math.abs(formData.total_amount - purchaseOrder.total);
+        return diff < 0.05 ? 'match' : 'mismatch';
+    };
+
+    const matchStatus = getMatchStatus();
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Add Supplier Invoice" size="lg">
+            <ModalBody>
+                <div className="space-y-6">
+                    {/* Header Inputs */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm text-zinc-400 mb-1">Invoice Number</label>
+                            <Input
+                                value={formData.invoice_number}
+                                onChange={e => setFormData({ ...formData, invoice_number: e.target.value })}
+                                placeholder="INV-001"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm text-zinc-400 mb-1">Invoice Date</label>
+                            <Input
+                                type="date"
+                                value={formData.invoice_date}
+                                onChange={e => setFormData({ ...formData, invoice_date: e.target.value })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* Amount Inputs with Match Indicator */}
+                    <div className="bg-dark-secondary p-4 rounded-lg border border-dark-border space-y-4">
+                        <div className="flex justify-between items-center pb-2 border-b border-dark-border">
+                            <h3 className="font-semibold text-zinc-300">Financials</h3>
+                            <div className={`flex items-center gap-2 text-sm font-medium ${matchStatus === 'match' ? 'text-green-400' : 'text-red-400'
+                                }`}>
+                                {matchStatus === 'match' ? (
+                                    <><CheckCircle className="w-4 h-4" /> 3-Way Match OK</>
+                                ) : (
+                                    <><XCircle className="w-4 h-4" /> Mismatch with PO ${purchaseOrder?.total?.toFixed(2)}</>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-xs text-zinc-400 mb-1">Subtotal</label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.subtotal}
+                                    onChange={e => setFormData({ ...formData, subtotal: parseFloat(e.target.value) || 0 })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-zinc-400 mb-1">Tax</label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={formData.tax_amount}
+                                    onChange={e => setFormData({ ...formData, tax_amount: parseFloat(e.target.value) || 0 })}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs text-zinc-400 mb-1 font-bold text-accent-primary">Total</label>
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    className="border-accent-primary"
+                                    value={formData.total_amount}
+                                    onChange={e => setFormData({ ...formData, total_amount: parseFloat(e.target.value) || 0 })}
+                                />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-sm text-zinc-400 mb-1">Notes</label>
+                        <textarea
+                            className="w-full bg-dark-secondary border border-dark-border rounded-lg p-2 text-white h-20 resize-none focus:outline-none focus:border-accent-primary"
+                            value={formData.notes}
+                            onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                            placeholder="Terms, payment details..."
+                        />
+                    </div>
+                </div>
+            </ModalBody>
+            <ModalFooter>
+                <div className="flex-1 text-xs text-zinc-500">
+                    Expected PO Total: ${purchaseOrder?.total?.toFixed(2)}
+                </div>
+                <Button variant="secondary" onClick={onClose}>Cancel</Button>
+                <Button onClick={handleSubmit} loading={loading}>Save Invoice</Button>
+            </ModalFooter>
+        </Modal>
+    );
+}

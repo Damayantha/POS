@@ -1,0 +1,743 @@
+import { useState, useEffect } from 'react';
+import { Plus, Search, Edit2, Trash2, Package, Grid, List, FileSpreadsheet } from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Input, SearchInput } from '../components/ui/Input';
+import { Select } from '../components/ui/Select';
+import { Modal, ModalBody, ModalFooter } from '../components/ui/Modal';
+import { Table, TableHead, TableBody, TableRow, TableCell, TableHeader, EmptyState } from '../components/ui/Table';
+import { Badge, StatusBadge } from '../components/ui/Badge';
+import { toast } from '../components/ui/Toast';
+import { v4 as uuid } from 'uuid';
+import { PermissionGate } from '../components/auth/PermissionGate';
+import { PERMISSIONS } from '../stores/authStore';
+import { ExcelImport } from '../components/ui/ExcelImport';
+
+
+// Real imports below
+import { useSettingsStore } from '../stores/settingsStore';
+import { checkLimit, getPlanLimits } from '../lib/planLimits';
+
+export default function ProductsPage() {
+    const [products, setProducts] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [viewMode, setViewMode] = useState('grid');
+    const [showProductModal, setShowProductModal] = useState(false);
+    const [showCategoryModal, setShowCategoryModal] = useState(false);
+    const [editingProduct, setEditingProduct] = useState(null);
+    const [editingCategory, setEditingCategory] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [activationData, setActivationData] = useState(null);
+    const [showExcelImport, setShowExcelImport] = useState(false);
+
+    const { settings, loadSettings } = useSettingsStore();
+
+    useEffect(() => {
+        loadData();
+        loadSettings();
+        loadActivationData();
+    }, []);
+
+    const loadActivationData = async () => {
+        try {
+            const data = await window.electronAPI.settings.get('activation_data');
+            setActivationData(data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const loadData = async () => {
+        try {
+            const [productsData, categoriesData] = await Promise.all([
+                window.electronAPI.products.getAll(),
+                window.electronAPI.categories.getAll(),
+            ]);
+            setProducts(productsData);
+            setCategories(categoriesData);
+        } catch (error) {
+            toast.error('Failed to load data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filteredProducts = (products || []).filter(product => {
+        const matchesCategory = selectedCategory === 'all' || product.category_id === selectedCategory;
+        const matchesSearch = !searchQuery ||
+            product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            product.sku?.toLowerCase().includes(searchQuery.toLowerCase());
+        return matchesCategory && matchesSearch;
+    });
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: settings.currency || 'USD' }).format(amount);
+    };
+
+    const handleDeleteProduct = async (product) => {
+        if (confirm(`Delete "${product.name}"?`)) {
+            try {
+                await window.electronAPI.products.delete(product.id);
+                toast.success('Product deleted');
+                loadData();
+            } catch (error) {
+                toast.error('Failed to delete product');
+            }
+        }
+    };
+
+    const handleDeleteCategory = async (category) => {
+        if (confirm(`Delete "${category.name}"? Products in this category will become uncategorized.`)) {
+            try {
+                await window.electronAPI.categories.delete(category.id);
+                toast.success('Category deleted');
+                loadData();
+            } catch (error) {
+                toast.error('Failed to delete category');
+            }
+        }
+    };
+
+    const getStockStatus = (product) => {
+        if (product.stock_quantity <= 0) return 'out-of-stock';
+        if (product.stock_quantity <= product.min_stock_level) return 'low-stock';
+        return 'in-stock';
+    };
+
+    const handleExcelImport = async (records) => {
+        // Check Limits
+        const limitCheck = checkLimit(activationData?.plan, 'products', products.length + records.length);
+        if (!limitCheck.allowed && activationData?.plan !== 'pro' && activationData?.plan !== 'enterprise') {
+            // Allow partial import? No, just block.
+            // Actually check if remaining space allows some.
+            const remaining = getPlanLimits(activationData?.plan).products - products.length;
+            if (records.length > remaining) {
+                toast.error(`Plan limit reached. You can only add ${remaining} more products. ${limitCheck.message}`);
+                return;
+            }
+        }
+
+        let successCount = 0;
+        for (const record of records) {
+            try {
+                // Find or create category
+                let categoryId = null;
+                if (record.category) {
+                    const existingCat = categories.find(
+                        c => c.name.toLowerCase() === record.category.toLowerCase()
+                    );
+                    categoryId = existingCat?.id || null;
+                }
+
+                await window.electronAPI.products.create({
+                    id: uuid(),
+                    sku: record.sku || null,
+                    barcode: record.barcode || null,
+                    name: record.name,
+                    description: record.description || null,
+                    category_id: categoryId,
+                    price: parseFloat(record.price) || 0,
+                    cost: parseFloat(record.cost) || 0,
+                    stock_quantity: parseInt(record.stock_quantity) || 0,
+                    min_stock_level: parseInt(record.min_stock_level) || 5,
+                    tax_rate: parseFloat(record.tax_rate) || 0,
+                    is_active: true,
+                    image_path: null,
+                });
+                successCount++;
+            } catch (error) {
+                console.error('Failed to import product:', record.name, error);
+            }
+        }
+        toast.success(`Imported ${successCount} products`);
+        loadData();
+    };
+
+    return (
+        <>
+            <div className="h-full flex flex-col overflow-hidden">
+                {/* Header */}
+                <div className="p-6 border-b border-dark-border">
+                    <div className="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 className="text-2xl font-bold">Products</h1>
+                            <p className="text-zinc-500">{products.length} products in inventory</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <PermissionGate permission={PERMISSIONS.PRODUCTS_CREATE}>
+                                <Button variant="secondary" onClick={() => setShowExcelImport(true)}>
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                    Import Excel
+                                </Button>
+                                <Button variant="secondary" onClick={() => setShowCategoryModal(true)}>
+                                    Manage Categories
+                                </Button>
+                                <Button onClick={() => {
+                                    const limitCheck = checkLimit(activationData?.plan, 'products', products.length);
+                                    if (!limitCheck.allowed) {
+                                        toast.error(limitCheck.message);
+                                        return;
+                                    }
+                                    setEditingProduct(null);
+                                    setShowProductModal(true);
+                                }}>
+                                    <Plus className="w-4 h-4" />
+                                    Add Product
+                                </Button>
+                            </PermissionGate>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                        <SearchInput
+                            value={searchQuery}
+                            onChange={setSearchQuery}
+                            placeholder="Search products..."
+                            className="flex-1 max-w-md"
+                        />
+                        <Select
+                            value={selectedCategory}
+                            onChange={setSelectedCategory}
+                            options={[
+                                { value: 'all', label: 'All Categories' },
+                                ...categories.map(c => ({ value: c.id, label: c.name }))
+                            ]}
+                            className="w-48"
+                        />
+                        <div className="flex items-center gap-1 bg-dark-tertiary rounded-lg p-1">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`p-2 rounded ${viewMode === 'grid' ? 'bg-accent-primary' : 'hover:bg-zinc-700'}`}
+                            >
+                                <Grid className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`p-2 rounded ${viewMode === 'list' ? 'bg-accent-primary' : 'hover:bg-zinc-700'}`}
+                            >
+                                <List className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto p-6">
+                    {loading ? (
+                        <div className="flex items-center justify-center h-full">
+                            <div className="w-10 h-10 border-4 border-accent-primary border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : filteredProducts.length === 0 ? (
+                        <EmptyState
+                            icon={Package}
+                            title="No products found"
+                            description={searchQuery ? 'Try a different search term' : 'Add your first product to get started'}
+                            action={
+                                <Button onClick={() => { setEditingProduct(null); setShowProductModal(true); }}>
+                                    <Plus className="w-4 h-4" />
+                                    Add Product
+                                </Button>
+                            }
+                        />
+                    ) : viewMode === 'grid' ? (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                            {filteredProducts.map(product => (
+                                <div key={product.id} className="card group">
+                                    <div className="aspect-square bg-dark-tertiary rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+                                        {product.image_path ? (
+                                            <img src={`app://${product.image_path}`} alt={product.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <Package className="w-12 h-12 text-zinc-600" />
+                                        )}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <h3 className="font-medium truncate">{product.name}</h3>
+                                        <p className="text-sm text-zinc-500">{product.sku || 'No SKU'}</p>
+                                        <div className="flex items-center justify-between">
+                                            <p className="font-semibold text-accent-primary">{formatCurrency(product.price)}</p>
+                                            <StatusBadge status={getStockStatus(product)} />
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <PermissionGate permission={PERMISSIONS.PRODUCTS_EDIT}>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="flex-1"
+                                                onClick={() => { setEditingProduct(product); setShowProductModal(true); }}
+                                            >
+                                                <Edit2 className="w-3 h-3" />
+                                                Edit
+                                            </Button>
+                                        </PermissionGate>
+                                        <PermissionGate permission={PERMISSIONS.PRODUCTS_DELETE}>
+                                            <Button
+                                                variant="danger"
+                                                size="sm"
+                                                onClick={() => handleDeleteProduct(product)}
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                        </PermissionGate>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <Table>
+                            <TableHead>
+                                <TableRow>
+                                    <TableHeader>Product</TableHeader>
+                                    <TableHeader>SKU</TableHeader>
+                                    <TableHeader>Category</TableHeader>
+                                    <TableHeader>Price</TableHeader>
+                                    <TableHeader>Stock</TableHeader>
+                                    <TableHeader>Status</TableHeader>
+                                    <TableHeader>Actions</TableHeader>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {filteredProducts.map(product => (
+                                    <TableRow key={product.id}>
+                                        <TableCell>
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 rounded-lg bg-dark-tertiary flex items-center justify-center">
+                                                    {product.image_path ? (
+                                                        <img src={`app://${product.image_path}`} alt="" className="w-full h-full object-cover rounded-lg" />
+                                                    ) : (
+                                                        <Package className="w-5 h-5 text-zinc-600" />
+                                                    )}
+                                                </div>
+                                                <span className="font-medium">{product.name}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="text-zinc-400">{product.sku || '-'}</TableCell>
+                                        <TableCell>
+                                            {product.category_name ? (
+                                                <Badge style={{ backgroundColor: `${product.category_color}20`, color: product.category_color }}>
+                                                    {product.category_name}
+                                                </Badge>
+                                            ) : '-'}
+                                        </TableCell>
+                                        <TableCell className="font-medium">{formatCurrency(product.price)}</TableCell>
+                                        <TableCell>{product.stock_quantity}</TableCell>
+                                        <TableCell><StatusBadge status={getStockStatus(product)} /></TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => { setEditingProduct(product); setShowProductModal(true); }}
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    onClick={() => handleDeleteProduct(product)}
+                                                >
+                                                    <Trash2 className="w-4 h-4 text-red-400" />
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    )}
+                </div>
+
+                {/* Product Modal */}
+                <ProductFormModal
+                    isOpen={showProductModal}
+                    onClose={() => setShowProductModal(false)}
+                    product={editingProduct}
+                    categories={categories}
+                    onSave={() => { loadData(); setShowProductModal(false); }}
+                />
+
+                {/* Category Modal */}
+                <CategoryManagerModal
+                    isOpen={showCategoryModal}
+                    onClose={() => setShowCategoryModal(false)}
+                    categories={categories}
+                    onSave={loadData}
+                />
+
+                {/* Excel Import Modal */}
+                <ExcelImport
+                    isOpen={showExcelImport}
+                    onClose={() => setShowExcelImport(false)}
+                    dataType="products"
+                    onImport={handleExcelImport}
+                    title="Import Products from Excel"
+                />
+            </div>
+        </>
+    );
+}
+
+function ProductFormModal({ isOpen, onClose, product, categories, onSave }) {
+    const [formData, setFormData] = useState({
+        name: '',
+        sku: '',
+        barcode: '',
+        description: '',
+        category_id: '',
+        price: '',
+        cost: '',
+        stock_quantity: '',
+        min_stock_level: '5',
+        tax_rate: '0',
+        is_active: true,
+        image_path: '',
+    });
+    const [loading, setLoading] = useState(false);
+    const [imagePreview, setImagePreview] = useState(null);
+
+    useEffect(() => {
+        if (product) {
+            setFormData({
+                name: product.name,
+                sku: product.sku || '',
+                barcode: product.barcode || '',
+                description: product.description || '',
+                category_id: product.category_id || '',
+                price: (product.price ?? 0).toString(),
+                cost: (product.cost ?? 0).toString(),
+                stock_quantity: (product.stock_quantity ?? 0).toString(),
+                min_stock_level: (product.min_stock_level ?? 5).toString(),
+                tax_rate: (product.tax_rate ?? 0).toString(),
+                is_active: product.is_active ?? true,
+                image_path: product.image_path || '',
+            });
+            // Load image if exists
+            if (product.image_path) {
+                loadExistingImage(product.image_path);
+            } else {
+                setImagePreview(null);
+            }
+        } else {
+            setFormData({
+                name: '',
+                sku: '',
+                barcode: '',
+                description: '',
+                category_id: '',
+                price: '',
+                cost: '',
+                stock_quantity: '0',
+                min_stock_level: '5',
+                tax_rate: '0',
+                is_active: true,
+                image_path: '',
+            });
+            setImagePreview(null);
+        }
+    }, [product, isOpen]);
+
+    const loadExistingImage = async (imagePath) => {
+        try {
+            const base64 = await window.electronAPI.images.get(imagePath);
+            if (base64) {
+                setImagePreview(base64);
+            }
+        } catch (error) {
+            console.error('Failed to load image:', error);
+        }
+    };
+
+    const handleImageSelect = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            const base64Data = event.target.result;
+            setImagePreview(base64Data);
+
+            // Save image and get filename
+            try {
+                const result = await window.electronAPI.images.save({
+                    base64Data,
+                    originalName: file.name,
+                });
+                if (result.success) {
+                    setFormData(prev => ({ ...prev, image_path: result.fileName }));
+                }
+            } catch (error) {
+                console.error('Failed to save image:', error);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleRemoveImage = async () => {
+        if (formData.image_path) {
+            try {
+                await window.electronAPI.images.delete(formData.image_path);
+            } catch (error) {
+                console.error('Failed to delete image:', error);
+            }
+        }
+        setImagePreview(null);
+        setFormData(prev => ({ ...prev, image_path: '' }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        if (!formData.name || !formData.price) {
+            toast.error('Name and price are required');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const data = {
+                ...formData,
+                id: product?.id || uuid(),
+                price: parseFloat(formData.price),
+                cost: formData.cost ? parseFloat(formData.cost) : 0,
+                stock_quantity: parseInt(formData.stock_quantity) || 0,
+                min_stock_level: parseInt(formData.min_stock_level) || 5,
+                tax_rate: parseFloat(formData.tax_rate) || 0,
+                category_id: formData.category_id || null,
+                image_path: formData.image_path || null,
+                sku: formData.sku || null,
+                barcode: formData.barcode || null,
+            };
+
+            if (product) {
+                await window.electronAPI.products.update(data);
+                toast.success('Product updated');
+            } else {
+                await window.electronAPI.products.create(data);
+                toast.success('Product created');
+            }
+            onSave();
+        } catch (error) {
+            toast.error(error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={product ? 'Edit Product' : 'Add Product'} size="lg">
+            <form onSubmit={handleSubmit}>
+                <ModalBody>
+                    <div className="grid grid-cols-3 gap-4">
+                        {/* Image Upload Section */}
+                        <div className="col-span-1">
+                            <label className="form-label mb-2 block">Product Image</label>
+                            <div className="aspect-square bg-dark-tertiary rounded-lg flex flex-col items-center justify-center overflow-hidden relative border-2 border-dashed border-zinc-600 hover:border-zinc-500 transition-colors">
+                                {imagePreview ? (
+                                    <>
+                                        <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                                        <button
+                                            type="button"
+                                            onClick={handleRemoveImage}
+                                            className="absolute top-2 right-2 p-1 bg-red-500 rounded-full hover:bg-red-600"
+                                        >
+                                            <Trash2 className="w-4 h-4 text-white" />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <label className="cursor-pointer flex flex-col items-center p-4 text-center">
+                                        <Package className="w-10 h-10 text-zinc-500 mb-2" />
+                                        <span className="text-sm text-zinc-400">Click to upload</span>
+                                        <span className="text-xs text-zinc-500 mt-1">JPG, PNG up to 5MB</span>
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={handleImageSelect}
+                                            className="hidden"
+                                        />
+                                    </label>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Form Fields */}
+                        <div className="col-span-2 grid grid-cols-2 gap-4">
+                            <Input
+                                label="Product Name *"
+                                value={formData.name}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                                placeholder="Enter product name"
+                            />
+                            <Input
+                                label="SKU"
+                                value={formData.sku}
+                                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                                placeholder="Enter SKU"
+                            />
+                            <Input
+                                label="Barcode"
+                                value={formData.barcode}
+                                onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                                placeholder="Enter barcode"
+                            />
+                            <Select
+                                label="Category"
+                                value={formData.category_id}
+                                onChange={(value) => setFormData({ ...formData, category_id: value })}
+                                options={[
+                                    { value: '', label: 'No Category' },
+                                    ...categories.map(c => ({ value: c.id, label: c.name }))
+                                ]}
+                            />
+                            <Input
+                                label="Price *"
+                                type="number"
+                                step="0.01"
+                                value={formData.price}
+                                onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                placeholder="0.00"
+                            />
+                            <Input
+                                label="Cost"
+                                type="number"
+                                step="0.01"
+                                value={formData.cost}
+                                onChange={(e) => setFormData({ ...formData, cost: e.target.value })}
+                                placeholder="0.00"
+                            />
+                            <Input
+                                label="Stock Quantity"
+                                type="number"
+                                value={formData.stock_quantity}
+                                onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
+                            />
+                            <Input
+                                label="Min Stock Level"
+                                type="number"
+                                value={formData.min_stock_level}
+                                onChange={(e) => setFormData({ ...formData, min_stock_level: e.target.value })}
+                            />
+                            <Input
+                                label="Tax Rate (%)"
+                                type="number"
+                                step="0.1"
+                                value={formData.tax_rate}
+                                onChange={(e) => setFormData({ ...formData, tax_rate: e.target.value })}
+                            />
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="is_active"
+                                    checked={formData.is_active}
+                                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                                    className="w-4 h-4 rounded bg-dark-tertiary border-dark-border"
+                                />
+                                <label htmlFor="is_active" className="text-sm">Active</label>
+                            </div>
+                        </div>
+                    </div>
+                </ModalBody>
+                <ModalFooter>
+                    <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+                    <Button type="submit" loading={loading}>
+                        {product ? 'Update Product' : 'Add Product'}
+                    </Button>
+                </ModalFooter>
+            </form>
+        </Modal>
+    );
+}
+
+function CategoryManagerModal({ isOpen, onClose, categories, onSave }) {
+    const [newCategory, setNewCategory] = useState({ name: '', color: '#6366f1' });
+    const [loading, setLoading] = useState(false);
+
+    const handleAddCategory = async () => {
+        if (!newCategory.name) {
+            toast.error('Category name is required');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await window.electronAPI.categories.create({
+                id: uuid(),
+                name: newCategory.name,
+                color: newCategory.color,
+            });
+            setNewCategory({ name: '', color: '#6366f1' });
+            toast.success('Category added');
+            onSave();
+        } catch (error) {
+            toast.error('Failed to add category');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeleteCategory = async (category) => {
+        if (confirm(`Delete "${category.name}"?`)) {
+            try {
+                await window.electronAPI.categories.delete(category.id);
+                toast.success('Category deleted');
+                onSave();
+            } catch (error) {
+                toast.error('Failed to delete category');
+            }
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Manage Categories" size="md">
+            <ModalBody>
+                <div className="space-y-4">
+                    {/* Add new category */}
+                    <div className="flex items-end gap-2">
+                        <Input
+                            label="New Category"
+                            value={newCategory.name}
+                            onChange={(e) => setNewCategory({ ...newCategory, name: e.target.value })}
+                            placeholder="Category name"
+                            containerClassName="flex-1"
+                        />
+                        <input
+                            type="color"
+                            value={newCategory.color}
+                            onChange={(e) => setNewCategory({ ...newCategory, color: e.target.value })}
+                            className="w-10 h-10 rounded-lg cursor-pointer bg-transparent"
+                        />
+                        <Button onClick={handleAddCategory} loading={loading}>
+                            <Plus className="w-4 h-4" />
+                        </Button>
+                    </div>
+
+                    {/* Category list */}
+                    <div className="space-y-2">
+                        {categories.map(category => (
+                            <div
+                                key={category.id}
+                                className="flex items-center justify-between p-3 rounded-lg bg-dark-tertiary"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <div
+                                        className="w-4 h-4 rounded-full"
+                                        style={{ backgroundColor: category.color }}
+                                    />
+                                    <span className="font-medium">{category.name}</span>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDeleteCategory(category)}
+                                >
+                                    <Trash2 className="w-4 h-4 text-red-400" />
+                                </Button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </ModalBody>
+        </Modal>
+    );
+}

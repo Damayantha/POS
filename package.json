@@ -1,0 +1,109 @@
+{
+  "name": "pos-by-cirvex",
+  "version": "1.0.0",
+  "description": "Complete Local POS System built with Electron",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "cross-env ESLINT_USE_FLAT_CONFIG=false eslint src electron",
+    "test": "vitest run",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && electron-builder",
+    "electron:start": "electron .",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild -f -w better-sqlite3"
+  },
+  "keywords": [
+    "pos",
+    "point-of-sale",
+    "electron",
+    "retail"
+  ],
+  "author": "Cirvex",
+  "license": "MIT",
+  "dependencies": {
+    "@react-pdf/renderer": "^4.3.1",
+    "bwip-js": "^4.8.0",
+    "date-fns": "^3.6.0",
+    "firebase": "^12.7.0",
+    "jsbarcode": "^3.12.1",
+    "lucide-react": "^0.303.0",
+    "nodemailer": "^7.0.11",
+    "pg": "^8.16.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.21.1",
+    "recharts": "^2.10.3",
+    "sharp": "^0.34.5",
+    "sql.js": "^1.13.0",
+    "uuid": "^9.0.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "zustand": "^4.4.7"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.2",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.16",
+    "concurrently": "^8.2.2",
+    "cross-env": "^10.1.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.9.1",
+    "eslint": "^9.39.2",
+    "eslint-plugin-react": "^7.37.5",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.4.0",
+    "to-ico": "^1.0.1",
+    "vite": "^7.3.0",
+    "vitest": "^4.0.16",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.cirvex.pos",
+    "productName": "POS by Cirvex",
+    "copyright": "Copyright © 2024 Cirvex Inc.",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron/database/schema.sql",
+        "to": "database/schema.sql"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "public/icon.ico",
+      "publisherName": "Cirvex Inc."
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "POS by Cirvex",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      "github"
+    ]
+  }
+}

@@ -1,0 +1,264 @@
+import { useState, useEffect } from 'react';
+import {
+    Search,
+    Plus,
+    Truck,
+    Phone,
+    Mail,
+    Globe,
+    MoreVertical,
+    Edit,
+    Trash
+} from 'lucide-react';
+import { Button } from '../components/ui/Button';
+import { Card } from '../components/ui/Card';
+import { Input } from '../components/ui/Input';
+import { Modal, ModalBody, ModalFooter } from '../components/ui/Modal';
+import { toast } from '../components/ui/Toast';
+import SupplierHistoryModal from '../components/modals/SupplierHistoryModal';
+import { History } from 'lucide-react';
+import { useSettingsStore } from '../stores/settingsStore';
+
+export default function SuppliersPage() {
+    const [suppliers, setSuppliers] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [showHistoryModal, setShowHistoryModal] = useState(false);
+    const [editingSupplier, setEditingSupplier] = useState(null);
+    const [historySupplier, setHistorySupplier] = useState(null);
+    const [formData, setFormData] = useState({
+        name: '',
+        contact_person: '',
+        email: '',
+        phone: '',
+        address: '',
+        website: '',
+        notes: ''
+    });
+    const { settings, loadSettings } = useSettingsStore();
+
+    useEffect(() => {
+        fetchSuppliers();
+        loadSettings();
+    }, []);
+
+    const fetchSuppliers = async () => {
+        setIsLoading(true);
+        try {
+            const data = await window.electronAPI.suppliers.getAll();
+            setSuppliers(data);
+        } catch (error) {
+            console.error('Failed to fetch suppliers:', error);
+            toast.error('Failed to load suppliers');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const formatCurrency = (amount) => {
+        return new Intl.NumberFormat('en-US', { style: 'currency', currency: settings.currency || 'USD' }).format(amount || 0);
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        try {
+            if (editingSupplier) {
+                await window.electronAPI.suppliers.update({ ...formData, id: editingSupplier.id });
+                toast.success('Supplier updated successfully');
+            } else {
+                await window.electronAPI.suppliers.create(formData);
+                toast.success('Supplier created successfully');
+            }
+            fetchSuppliers();
+            handleCloseModal();
+        } catch (error) {
+            console.error('Failed to save supplier:', error);
+            toast.error('Failed to save supplier');
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm('Are you sure you want to delete this supplier?')) return;
+        try {
+            await window.electronAPI.suppliers.delete(id);
+            toast.success('Supplier deleted');
+            fetchSuppliers();
+        } catch (error) {
+            toast.error('Failed to delete supplier');
+        }
+    };
+
+    const handleEdit = (supplier) => {
+        setEditingSupplier(supplier);
+        setFormData(supplier);
+        setShowModal(true);
+    };
+
+    const handleHistory = (supplier) => {
+        setHistorySupplier(supplier);
+        setShowHistoryModal(true);
+    };
+
+    const handleCloseModal = () => {
+        setShowModal(false);
+        setEditingSupplier(null);
+        setFormData({
+            name: '',
+            contact_person: '',
+            email: '',
+            phone: '',
+            address: '',
+            website: '',
+            notes: ''
+        });
+    };
+
+    const filteredSuppliers = suppliers.filter(s =>
+        s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        s.contact_person?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+    return (
+        <div className="h-full flex flex-col">
+            <div className="p-6 border-b border-dark-border flex justify-between items-center">
+                <div>
+                    <h1 className="text-2xl font-bold mb-1">Suppliers</h1>
+                    <p className="text-zinc-400">Manage your product suppliers and vendors</p>
+                </div>
+                <Button onClick={() => setShowModal(true)}>
+                    <Plus className="w-5 h-5 mr-2" />
+                    Add Supplier
+                </Button>
+            </div>
+
+            <div className="p-4 border-b border-dark-border bg-dark-primary">
+                <div className="max-w-md relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-500" />
+                    <Input
+                        placeholder="Search suppliers..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                    />
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {filteredSuppliers.map(supplier => (
+                        <Card key={supplier.id} className="p-4 hover:border-accent-primary transition-colors group">
+                            <div className="flex justify-between items-start mb-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                                        <Truck className="w-5 h-5" />
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold">{supplier.name}</h3>
+                                        <p className="text-sm text-zinc-400">{supplier.contact_person}</p>
+                                    </div>
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Button variant="ghost" size="icon" onClick={() => handleHistory(supplier)} title="View History">
+                                        <History className="w-4 h-4 text-blue-400 hover:text-blue-300" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleEdit(supplier)} title="Edit">
+                                        <Edit className="w-4 h-4 text-zinc-400 hover:text-white" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" onClick={() => handleDelete(supplier.id)} title="Delete">
+                                        <Trash className="w-4 h-4 text-red-400 hover:text-red-300" />
+                                    </Button>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 text-sm text-zinc-400">
+                                {supplier.balance !== undefined && (
+                                    <div className="flex items-center justify-between py-1 border-b border-dark-border mb-2">
+                                        <span>Balance:</span>
+                                        <span className={`font-semibold ${supplier.balance > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                            {formatCurrency(supplier.balance)}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {supplier.email && (
+                                    <div className="flex items-center gap-2">
+                                        <Mail className="w-4 h-4" />
+                                        <span>{supplier.email}</span>
+                                    </div>
+                                )}
+                                {supplier.phone && (
+                                    <div className="flex items-center gap-2">
+                                        <Phone className="w-4 h-4" />
+                                        <span>{supplier.phone}</span>
+                                    </div>
+                                )}
+                                {supplier.website && (
+                                    <div className="flex items-center gap-2">
+                                        <Globe className="w-4 h-4" />
+                                        <a href={supplier.website} target="_blank" rel="noopener noreferrer" className="hover:text-accent-primary truncate">
+                                            {supplier.website}
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+            </div>
+
+            <Modal isOpen={showModal} onClose={handleCloseModal} title={editingSupplier ? 'Edit Supplier' : 'Add Supplier'}>
+                <form onSubmit={handleSubmit}>
+                    <ModalBody>
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Company Name</label>
+                                <Input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Contact Person</label>
+                                <Input value={formData.contact_person} onChange={e => setFormData({ ...formData, contact_person: e.target.value })} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Email</label>
+                                    <Input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Phone</label>
+                                    <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Address</label>
+                                <Input value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Website</label>
+                                <Input value={formData.website} onChange={e => setFormData({ ...formData, website: e.target.value })} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Notes</label>
+                                <textarea
+                                    className="input w-full h-24 pt-2"
+                                    value={formData.notes}
+                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                    </ModalBody>
+                    <ModalFooter>
+                        <Button type="button" variant="secondary" onClick={handleCloseModal}>Cancel</Button>
+                        <Button type="submit">{editingSupplier ? 'Update' : 'Create'}</Button>
+                    </ModalFooter>
+                </form>
+            </Modal>
+
+            <SupplierHistoryModal
+                isOpen={showHistoryModal}
+                onClose={() => setShowHistoryModal(false)}
+                supplier={historySupplier}
+            />
+        </div>
+    );
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+release
+build
+.gemini
+.idea
+.vscode
+*.log
+.DS_Store
+Thumbs.db

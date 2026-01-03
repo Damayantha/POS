@@ -1,0 +1,12 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/supabase/authorize/route": "app/api/supabase/authorize/route.js",
+  "/api/supabase/callback/route": "app/api/supabase/callback/route.js",
+  "/api/supabase/projects/route": "app/api/supabase/projects/route.js",
+  "/api/supabase/refresh/route": "app/api/supabase/refresh/route.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/login/page": "app/login/page.js",
+  "/page": "app/page.js"
+}

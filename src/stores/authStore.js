@@ -1,0 +1,75 @@
+import { create } from 'zustand';
+import { hasPermission as checkPermission, PERMISSIONS } from '../lib/permissions';
+
+export const useAuthStore = create((set, get) => ({
+    currentEmployee: null,
+    isAuthenticated: false,
+
+    checkAuth: async () => {
+        // Check for stored auth in sessionStorage
+        const stored = sessionStorage.getItem('pos_auth');
+        if (stored) {
+            const employee = JSON.parse(stored);
+            set({ currentEmployee: employee, isAuthenticated: true });
+            return true;
+        }
+        return false;
+    },
+
+    login: async (employeeId, pin) => {
+        try {
+            const employee = await window.electronAPI.employees.verifyPin({ id: employeeId, pin });
+            if (employee) {
+                sessionStorage.setItem('pos_auth', JSON.stringify(employee));
+                set({ currentEmployee: employee, isAuthenticated: true });
+                return { success: true };
+            }
+            return { success: false, error: 'Invalid PIN' };
+        } catch (error) {
+            return { success: false, error: error.message };
+        }
+    },
+
+    logout: () => {
+        sessionStorage.removeItem('pos_auth');
+        set({ currentEmployee: null, isAuthenticated: false });
+    },
+
+    isAdmin: () => {
+        const { currentEmployee } = get();
+        return currentEmployee?.role === 'admin';
+    },
+
+    isManager: () => {
+        const { currentEmployee } = get();
+        return currentEmployee?.role === 'admin' || currentEmployee?.role === 'manager';
+    },
+
+    // Check if current user has a specific permission
+    hasPermission: (permission) => {
+        const { currentEmployee } = get();
+        if (!currentEmployee) return false;
+        return checkPermission(currentEmployee.role, permission);
+    },
+
+    // Helper to check multiple permissions (any)
+    hasAnyPermission: (permissions) => {
+        const { hasPermission } = get();
+        return permissions.some(p => hasPermission(p));
+    },
+
+    // Helper to check multiple permissions (all)
+    hasAllPermissions: (permissions) => {
+        const { hasPermission } = get();
+        return permissions.every(p => hasPermission(p));
+    },
+
+    // Get current user's role
+    getRole: () => {
+        const { currentEmployee } = get();
+        return currentEmployee?.role || null;
+    },
+}));
+
+// Export PERMISSIONS for easy access
+export { PERMISSIONS };

@@ -1,0 +1,3 @@
+{
+  "/api/supabase/authorize/route": "app/api/supabase/authorize/route.js"
+}
