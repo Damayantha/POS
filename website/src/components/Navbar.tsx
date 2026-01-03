@@ -83,7 +83,7 @@ export function Navbar() {
                         initial={{ opacity: 0, y: -20 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -20 }}
-                        className="absolute top-full left-0 right-0 glass border-t border-border p-6 md:hidden flex flex-col gap-4"
+                        className="absolute top-full left-0 right-0 bg-black/95 backdrop-blur-xl border-t border-white/10 p-6 md:hidden flex flex-col gap-4"
                     >
                         {navLinks.map((link) => (
                             <Link
