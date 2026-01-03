@@ -3,9 +3,14 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Download, Check, Loader2 } from 'lucide-react'
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
+import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { setDoc, doc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
+
+interface GitHubAsset {
+    name: string;
+    browser_download_url: string;
+}
 
 export function DownloadSection() {
     const [email, setEmail] = useState('')
@@ -22,7 +27,8 @@ export function DownloadSection() {
     const [os, setOS] = useState<'windows' | 'mac' | 'linux' | 'unknown'>('windows')
     const [downloadUrl, setDownloadUrl] = useState('')
     const [version, setVersion] = useState('')
-    const [assets, setAssets] = useState<any[]>([])
+    const [assets, setAssets] = useState<GitHubAsset[]>([])
+
 
     // Detect OS
     useEffect(() => {
@@ -114,17 +120,19 @@ export function DownloadSection() {
             // Force download behavior
             link.click(); 
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err)
-            if (err.code === 'auth/email-already-in-use') {
+            const errorObj = err as { code?: string; message?: string }
+            if (errorObj.code === 'auth/email-already-in-use') {
                 setError('Email already in use. Please sign in instead.')
             } else {
-                setError(err.message || 'Something went wrong.')
+                setError(errorObj.message || 'Something went wrong.')
             }
         } finally {
             setLoading(false)
         }
     }
+
 
     if (success) {
         return (
@@ -143,7 +151,7 @@ export function DownloadSection() {
                             We detected you are on <strong>{os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'}</strong>.
                         </p>
                         <p className="text-sm text-muted-foreground mb-8">
-                           If the download didn't start automatically, <a href={downloadUrl || "https://github.com/Damayantha/POS/releases/latest"} className="underline text-accent">click here</a>.
+                           If the download didn&apos;t start automatically, <a href={downloadUrl || "https://github.com/Damayantha/POS/releases/latest"} className="underline text-accent">click here</a>.
                         </p>
                         
                         <div className="flex flex-col gap-4">
@@ -281,7 +289,7 @@ export function DownloadSection() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full bg-accent text-white font-bold py-4 rounded-lg hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-full bg-accent text-white font-bold py-4 px-6 rounded-lg hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed whitespace-normal h-auto leading-tight"
                         >
                             {loading ? <Loader2 className="animate-spin" /> : 
                              `Create Account & Download for ${os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'}`
@@ -293,11 +301,11 @@ export function DownloadSection() {
                             {/* Manual fallback links if auto-detect wrong */}
                            {assets.length > 0 ? (
                                 <>
-                                    <a href={assets.find((a: any) => a.name.endsWith('.exe'))?.browser_download_url} target="_blank" className="hover:text-white underline">Windows</a>
+                                    <a href={assets.find(a => a.name.endsWith('.exe'))?.browser_download_url} target="_blank" className="hover:text-white underline">Windows</a>
                                     <span className="text-white/20">|</span>
-                                    <a href={assets.find((a: any) => a.name.endsWith('.dmg'))?.browser_download_url} target="_blank" className="hover:text-white underline">macOS</a>
+                                    <a href={assets.find(a => a.name.endsWith('.dmg'))?.browser_download_url} target="_blank" className="hover:text-white underline">macOS</a>
                                     <span className="text-white/20">|</span>
-                                    <a href={assets.find((a: any) => a.name.endsWith('.AppImage'))?.browser_download_url} target="_blank" className="hover:text-white underline">Linux</a>
+                                    <a href={assets.find(a => a.name.endsWith('.AppImage'))?.browser_download_url} target="_blank" className="hover:text-white underline">Linux</a>
                                 </>
                            ) : (
                                 <a href="https://github.com/Damayantha/POS/releases/latest" target="_blank" className="hover:text-white underline">View all versions on GitHub</a>

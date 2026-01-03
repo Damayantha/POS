@@ -1,10 +1,22 @@
-'use client'
-
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { ArrowRight, CheckCircle2 } from 'lucide-react'
 
 export function Hero() {
+    const [os, setOS] = useState<'Windows' | 'macOS' | 'Linux' | 'App'>('Windows')
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const userAgent = window.navigator.userAgent.toLowerCase()
+        setTimeout(() => {
+            if (userAgent.includes('win')) setOS('Windows')
+            else if (userAgent.includes('mac')) setOS('macOS')
+            else if (userAgent.includes('linux')) setOS('Linux')
+            else setOS('App')
+        }, 0)
+    }, [])
+
     return (
         <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
             {/* Background Gradients (Subtle) */}
@@ -44,7 +56,7 @@ export function Hero() {
                             href="#download"
                             className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-white/90 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
                         >
-                            Download for Windows
+                            Download for {os}
                             <ArrowRight size={20} />
                         </Link>
                         <Link
