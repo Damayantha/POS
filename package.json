@@ -21,7 +21,10 @@
     "electron",
     "retail"
   ],
-  "author": "Cirvex",
+  "author": {
+    "name": "Cirvex Inc.",
+    "email": "support@cirvex.com"
+  },
   "license": "MIT",
   "dependencies": {
     "@react-pdf/renderer": "^4.3.1",
@@ -107,7 +110,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "public/icon.png"
+      "icon": "public/icon-512.png"
     },
     "linux": {
       "target": [
