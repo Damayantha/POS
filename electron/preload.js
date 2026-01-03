@@ -101,15 +101,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
         reset: () => ipcRenderer.invoke('backup:reset'),
     },
 
-    // Excel Import/Export
-    excel: {
-        parseBuffer: (buffer) => ipcRenderer.invoke('excel:parseBuffer', buffer),
-        detectMappings: (headers, dataType) => ipcRenderer.invoke('excel:detectMappings', { headers, dataType }),
-        validateAndTransform: (rows, mappings, dataType) => ipcRenderer.invoke('excel:validateAndTransform', { rows, mappings, dataType }),
-        getFieldMappings: (dataType) => ipcRenderer.invoke('excel:getFieldMappings', dataType),
-        generateTemplate: (dataType) => ipcRenderer.invoke('excel:generateTemplate', dataType),
-        export: (data, dataType) => ipcRenderer.invoke('excel:export', { data, dataType }),
-    },
+
 
     // Inventory
     inventory: {

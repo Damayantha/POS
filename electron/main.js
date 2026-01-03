@@ -3042,7 +3042,7 @@ ipcMain.handle('giftCards:savePdf', async (_, giftCard) => {
     const receiptService = new ReceiptService();
     const settings = getOne("SELECT value FROM settings WHERE key = 'store_config'") || {};
     let storeSettings = {};
-    try { storeSettings = JSON.parse(settings.value); } catch (e) { }
+    try { storeSettings = JSON.parse(settings.value); } catch (e) { console.error(e); }
 
     const pdfPath = await receiptService.generateGiftCardPdf(giftCard, storeSettings, dialogResult.filePath);
     return pdfPath;

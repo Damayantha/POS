@@ -102,6 +102,21 @@
       "shortcutName": "POS by Cirvex",
       "deleteAppDataOnUninstall": false
     },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "public/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "public/icon.png",
+      "category": "Office"
+    },
     "publish": [
       "github"
     ]

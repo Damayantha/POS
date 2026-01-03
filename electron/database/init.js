@@ -80,7 +80,7 @@ function runMigrations() {
         try {
             db.run('ALTER TABLE customers ADD COLUMN credit_enabled INTEGER DEFAULT 0');
             console.log('Added credit_enabled column to customers');
-        } catch (e) {
+        } catch {
             console.log('credit_enabled column may already exist');
         }
     }

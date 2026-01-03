@@ -46,7 +46,7 @@ async function saveImage(base64Data, originalName = 'image.jpg') {
                 fileName: fileName.replace(path.extname(fileName), '.jpg'),
                 filePath: filePath.replace(path.extname(filePath), '.jpg'),
             };
-        } catch (sharpError) {
+        } catch {
             // If sharp fails, save the original image
             fs.writeFileSync(filePath, buffer);
             return {
@@ -81,7 +81,7 @@ async function saveImageFromPath(sourcePath) {
                 fileName: fileName.replace(path.extname(fileName), '.jpg'),
                 filePath: filePath.replace(path.extname(filePath), '.jpg'),
             };
-        } catch (sharpError) {
+        } catch {
             // If sharp fails, just copy the file
             fs.copyFileSync(sourcePath, filePath);
             return {
