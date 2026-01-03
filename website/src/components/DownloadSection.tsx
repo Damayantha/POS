@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Download, Check, Loader2 } from 'lucide-react'
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth'
@@ -17,6 +17,59 @@ export function DownloadSection() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [success, setSuccess] = useState(false)
+    
+    // OS and Download State
+    const [os, setOS] = useState<'windows' | 'mac' | 'linux' | 'unknown'>('windows')
+    const [downloadUrl, setDownloadUrl] = useState('')
+    const [version, setVersion] = useState('')
+    const [assets, setAssets] = useState<any[]>([])
+
+    // Detect OS
+    useEffect(() => {
+        if (typeof window === 'undefined') return
+        const userAgent = window.navigator.userAgent.toLowerCase()
+        if (userAgent.includes('win')) setOS('windows')
+        else if (userAgent.includes('mac')) setOS('mac')
+        else if (userAgent.includes('linux')) setOS('linux')
+        else setOS('unknown')
+    }, [])
+
+    // Fetch Latest Release
+    useEffect(() => {
+        const fetchRelease = async () => {
+            try {
+                const res = await fetch('https://api.github.com/repos/Damayantha/POS/releases/latest')
+                if (!res.ok) return
+                const data = await res.json()
+                setVersion(data.tag_name)
+                setAssets(data.assets)
+
+                // Determine download URL based on OS matches
+                // Windows: .exe
+                // Mac: .dmg
+                // Linux: .AppImage
+                // Fallback can be calculated if API limit reached
+            } catch (e) {
+                console.error('Failed to fetch release info', e)
+            }
+        }
+        fetchRelease()
+    }, [])
+
+    // Update download URL when OS or Assets change
+    useEffect(() => {
+        if (assets.length === 0) return
+
+        let targetExt = '.exe'
+        if (os === 'mac') targetExt = '.dmg'
+        if (os === 'linux') targetExt = '.AppImage'
+
+        const asset = assets.find((a: any) => a.name.endsWith(targetExt))
+        if (asset) {
+            setDownloadUrl(asset.browser_download_url)
+        }
+    }, [os, assets])
+
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -29,31 +82,37 @@ export function DownloadSection() {
             const user = userCredential.user
 
             // 2. Save User Profile with Newsletter pref
-            // We use 'users' collection for profile data
             const userData = {
                 email: user.email,
                 newsletter: newsletter,
                 createdAt: new Date(),
-                plan: 'free', // Default to free plan
+                plan: 'free', 
                 subscriptionStatus: 'active',
                 businessName: businessName,
                 businessAddress: businessAddress,
                 businessPhone: businessPhone
             };
 
-            // DEBUG: Alert to verify data
-            alert(`DEBUG: Creating account for Business: ${businessName}`);
-
             await setDoc(doc(db, "users", user.uid), userData)
-
             setSuccess(true)
 
-            // 3. Trigger Download (Hardcoded to a dummy release or GitHub release if we had URL)
-            // For now, prompt user to check dashboard or start download
+            // 3. Trigger Download
             const link = document.createElement('a');
-            link.href = '/POSbyCirvex-Setup.exe'; // Dummy path, normally would be GitHub release URL
-            link.download = 'POSbyCirvex-Setup.exe';
-            // link.click(); // Auto download?
+            // Use fetched URL or reasonable fallback
+            if (downloadUrl) {
+                link.href = downloadUrl;
+            } else {
+                 // Fallback if API failed
+                 const v = version || '1.0.0' // Default fallback version
+                 if (os === 'mac') link.href = `https://github.com/Damayantha/POS/releases/download/${v}/POS.by.Cirvex-${v.replace('v','')}.dmg` // Approximation
+                 else if (os === 'linux') link.href = `https://github.com/Damayantha/POS/releases/download/${v}/POS.by.Cirvex-${v.replace('v','')}.AppImage`
+                 else link.href = `https://github.com/Damayantha/POS/releases/download/${v}/POS.by.Cirvex.Setup.${v.replace('v','')}.exe`
+                 
+                 // If version is empty, fallback to latest/download route which might be 404 but better than nothing or specific file
+                 if (!version) link.href = 'https://github.com/Damayantha/POS/releases/latest'
+            }
+            // Force download behavior
+            link.click(); 
 
         } catch (err: any) {
             console.error(err)
@@ -80,12 +139,15 @@ export function DownloadSection() {
                             <Check size={40} />
                         </div>
                         <h2 className="text-3xl font-bold mb-4">Account Created & Download Started!</h2>
-                        <p className="text-muted-foreground mb-8">
-                            Welcome to POSbyCirvex. You can now log into the Windows app with these credentials.
+                         <p className="text-muted-foreground mb-4">
+                            We detected you are on <strong>{os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'}</strong>.
                         </p>
+                        <p className="text-sm text-muted-foreground mb-8">
+                           If the download didn't start automatically, <a href={downloadUrl || "https://github.com/Damayantha/POS/releases/latest"} className="underline text-accent">click here</a>.
+                        </p>
+                        
                         <div className="flex flex-col gap-4">
                             <a href="/dashboard" className="text-accent hover:underline font-bold">Go to Dashboard</a>
-                            <p className="text-sm text-muted-foreground">Download didn't start? <a href="#" className="underline">Click here</a></p>
                         </div>
                     </motion.div>
                 </div>
@@ -102,7 +164,7 @@ export function DownloadSection() {
                 <div>
                     <h2 className="text-4xl md:text-5xl font-bold mb-6">Ready to transform your business?</h2>
                     <p className="text-muted-foreground text-lg mb-8">
-                        Get the production-ready build for Windows. Create an account to access features, sync data, and manage your subscription.
+                        Get the production-ready build for your platform. Create an account to access features, sync data, and manage your subscription.
                     </p>
 
                     <div className="space-y-4">
@@ -112,7 +174,7 @@ export function DownloadSection() {
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold">2</div>
-                            <span className="text-lg">Download the installer</span>
+                            <span className="text-lg">Download for {os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'}</span>
                         </div>
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white font-bold">3</div>
@@ -221,12 +283,31 @@ export function DownloadSection() {
                             disabled={loading}
                             className="w-full bg-accent text-white font-bold py-4 rounded-lg hover:bg-accent/90 transition-all shadow-lg shadow-accent/20 flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? <Loader2 className="animate-spin" /> : 'Create Account & Download'}
+                            {loading ? <Loader2 className="animate-spin" /> : 
+                             `Create Account & Download for ${os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'}`
+                            }
                         </button>
+                        
+                        <div className="flex gap-4 justify-center text-xs text-muted-foreground mt-2">
+                             <span>Other platforms:</span>
+                            {/* Manual fallback links if auto-detect wrong */}
+                           {assets.length > 0 ? (
+                                <>
+                                    <a href={assets.find((a: any) => a.name.endsWith('.exe'))?.browser_download_url} target="_blank" className="hover:text-white underline">Windows</a>
+                                    <span className="text-white/20">|</span>
+                                    <a href={assets.find((a: any) => a.name.endsWith('.dmg'))?.browser_download_url} target="_blank" className="hover:text-white underline">macOS</a>
+                                    <span className="text-white/20">|</span>
+                                    <a href={assets.find((a: any) => a.name.endsWith('.AppImage'))?.browser_download_url} target="_blank" className="hover:text-white underline">Linux</a>
+                                </>
+                           ) : (
+                                <a href="https://github.com/Damayantha/POS/releases/latest" target="_blank" className="hover:text-white underline">View all versions on GitHub</a>
+                           )}
+                        </div>
 
                         <p className="text-xs text-center text-muted-foreground mt-4">
                             By continuing, you agree to our Terms and Privacy Policy.
-                            <br />Windows 10/11 (64-bit)
+                            <br />
+                            Detected: {os === 'mac' ? 'macOS' : os === 'linux' ? 'Linux' : 'Windows'} {version ? `(${version})` : ''}
                         </p>
                     </form>
                 </motion.div>
