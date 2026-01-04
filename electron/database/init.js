@@ -496,6 +496,10 @@ function runMigrations() {
 }
 
 function setupSyncTriggers(db, tables) {
+    console.log('Skipping SQLite Sync Triggers (Handled manually to avoid loops)...');
+    return; // DISABLED: Triggers cause infinite loops with SyncManager
+    
+    /*
     console.log('Setting up SQLite Sync Triggers...');
     tables.forEach(table => {
         try {
@@ -504,11 +508,6 @@ function setupSyncTriggers(db, tables) {
             if (tableExists.length === 0) return;
 
             // Trigger: AFTER UPDATE
-            // automatically set is_synced = 0 when record changes, UNLESS it's the sync process itself setting is_synced=1
-            // We differentiate by checking if the NEW.is_synced is being explicitly set to 1.
-            // Actually, simpler: If we update via SyncManager, we explicitly set is_synced=1.
-            // Users update via app, they don't touch is_synced (so it stays old value or default).
-            // Logic: IF we are NOT updating is_synced (i.e. NEW.is_synced == OLD.is_synced), THEN force it to 0.
             db.run(`
                 CREATE TRIGGER IF NOT EXISTS trg_${table}_update_sync
                 AFTER UPDATE ON ${table}
@@ -521,25 +520,12 @@ function setupSyncTriggers(db, tables) {
                 END;
             `);
 
-            // Trigger: AFTER INSERT
-            // usually default is 0. If sync inserts, it sets 1. 
-            // If app inserts, it sets 0 (default) or nothing.
-            // We just ensure updated_at is set.
-            /* 
-            db.run(`
-                CREATE TRIGGER IF NOT EXISTS trg_${table}_insert_timestamp
-                AFTER INSERT ON ${table}
-                BEGIN
-                    UPDATE ${table} SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-                END;
-            `);
-            */
-
         } catch (e) {
             console.error(`Error setting trigger for ${table}:`, e.message);
         }
     });
     console.log('Sync Triggers setup complete.');
+    */
 }
 
 function getTableColumns(tableName) {

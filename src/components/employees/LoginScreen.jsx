@@ -4,12 +4,14 @@ import { useAuthStore } from '../../stores/authStore';
 import { toast } from '../ui/Toast';
 import { TitleBar } from '../layout/TitleBar';
 import { Terminal } from 'lucide-react';
+import OpeningCashDialog from '../shifts/OpeningCashDialog';
 
 export default function LoginScreen() {
     const [employees, setEmployees] = useState([]);
     const [selectedEmployee, setSelectedEmployee] = useState(null);
     const [pin, setPin] = useState('');
     const [loading, setLoading] = useState(false);
+    const [showOpeningCash, setShowOpeningCash] = useState(false);
     const { login } = useAuthStore();
 
     useEffect(() => {
@@ -25,22 +27,59 @@ export default function LoginScreen() {
         }
     };
 
+    const performLogin = async (employeeId, enteredPin) => {
+         try {
+            const result = await login(employeeId, enteredPin);
+            if (!result.success) {
+                toast.error(result.error || 'Invalid PIN');
+            }
+         } catch (error) {
+             toast.error('Login failed');
+         }
+    };
+
     const handleLogin = async (enteredPin) => {
         if (!selectedEmployee) return;
 
         setLoading(true);
         try {
-            const result = await login(selectedEmployee.id, enteredPin);
-            if (!result.success) {
-                toast.error(result.error || 'Invalid PIN');
+            // 1. Verify credentials first
+            const verified = await window.electronAPI.employees.verifyPin({ 
+                id: selectedEmployee.id, 
+                pin: enteredPin 
+            });
+
+            if (!verified) {
+                toast.error('Invalid PIN');
                 setPin('');
+                setLoading(false);
+                return;
+            }
+
+            // 2. Check for active shift
+            const activeShift = await window.electronAPI.shifts.getCurrent(selectedEmployee.id);
+            
+            if (activeShift) {
+                // Shift active, proceed to login
+                await performLogin(selectedEmployee.id, enteredPin);
+            } else {
+                // No active shift, show opening cash dialog
+                setPin(enteredPin); // Keep PIN for final login
+                setShowOpeningCash(true);
             }
         } catch (error) {
+            console.error('Login error:', error);
             toast.error('Login failed');
             setPin('');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleOpeningCashSuccess = async (shift) => {
+        setShowOpeningCash(false);
+        // Login with stored pin
+        await performLogin(selectedEmployee.id, pin);
     };
 
     if (selectedEmployee) {
@@ -83,6 +122,17 @@ export default function LoginScreen() {
                         </div>
                     </div>
                 </div>
+                
+                {showOpeningCash && (
+                    <OpeningCashDialog 
+                        employee={selectedEmployee}
+                        onSuccess={handleOpeningCashSuccess}
+                        onCancel={() => {
+                            setShowOpeningCash(false);
+                            setPin('');
+                        }}
+                    />
+                )}
             </div>
         );
     }

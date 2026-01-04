@@ -16,9 +16,12 @@ import {
     History,
     CreditCard,
     FileText,
-    Truck
+    Truck,
+    DollarSign
 } from 'lucide-react';
 import { useAuthStore, PERMISSIONS } from '../../stores/authStore';
+import { useState, useEffect } from 'react';
+import ShiftSummaryDialog from '../shifts/ShiftSummaryDialog';
 
 const navItems = [
     { path: '/', icon: LayoutDashboard, label: 'Dashboard', permission: PERMISSIONS.DASHBOARD_VIEW },
@@ -43,6 +46,25 @@ const navItems = [
 
 export function Sidebar() {
     const { currentEmployee, logout, hasPermission } = useAuthStore();
+    const [currentShiftId, setCurrentShiftId] = useState(null);
+    const [showShiftSummary, setShowShiftSummary] = useState(false);
+
+    useEffect(() => {
+        if (currentEmployee) {
+            checkActiveShift();
+        }
+    }, [currentEmployee]);
+
+    const checkActiveShift = async () => {
+        try {
+            const shift = await window.electronAPI.shifts.getCurrent(currentEmployee.id);
+            if (shift) {
+                setCurrentShiftId(shift.id);
+            }
+        } catch (error) {
+            console.error('Failed to check active shift:', error);
+        }
+    };
 
     // Filter nav items based on user permissions
     const visibleNavItems = navItems.filter(item => hasPermission(item.permission));
@@ -79,7 +101,26 @@ export function Sidebar() {
             </nav>
 
             {/* Logout */}
-            <div className="p-3 border-t border-dark-border">
+            <div className="p-3 border-t border-dark-border space-y-1">
+                {currentShiftId && (
+                    <>
+                    <button
+                        onClick={() => setShowShiftSummary(true)}
+                        className="sidebar-item w-full text-accent-primary hover:bg-accent-primary/10"
+                    >
+                        <DollarSign className="w-5 h-5" />
+                        <span>Close Shift</span>
+                    </button>
+                    {showShiftSummary && (
+                        <ShiftSummaryDialog
+                            shiftId={currentShiftId}
+                            onClose={() => setShowShiftSummary(false)}
+                            onLogout={logout}
+                        />
+                    )}
+                    </>
+                )}
+                
                 <button
                     onClick={logout}
                     className="sidebar-item w-full text-red-400 hover:text-red-300 hover:bg-red-500/10"

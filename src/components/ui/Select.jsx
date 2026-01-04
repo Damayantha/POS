@@ -11,7 +11,9 @@ export function Select({
     className = ''
 }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [dropdownStyle, setDropdownStyle] = useState({});
     const ref = useRef(null);
+    const buttonRef = useRef(null);
 
     useEffect(() => {
         function handleClickOutside(event) {
@@ -23,6 +25,19 @@ export function Select({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    useEffect(() => {
+        if (isOpen && buttonRef.current) {
+            const rect = buttonRef.current.getBoundingClientRect();
+            setDropdownStyle({
+                position: 'fixed',
+                top: rect.bottom + 4,
+                left: rect.left,
+                width: rect.width,
+                zIndex: 9999
+            });
+        }
+    }, [isOpen]);
+
     const selectedOption = options.find(opt => opt.value === value);
 
     return (
@@ -30,6 +45,7 @@ export function Select({
             {label && <label className="form-label">{label}</label>}
             <div className="relative">
                 <button
+                    ref={buttonRef}
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
                     className={`input flex items-center justify-between ${error ? 'border-red-500' : ''}`}
@@ -41,7 +57,7 @@ export function Select({
                 </button>
 
                 {isOpen && (
-                    <div className="absolute z-50 w-full mt-1 bg-dark-secondary border border-dark-border rounded-lg shadow-xl overflow-hidden animate-fade-in">
+                    <div style={dropdownStyle} className="bg-dark-secondary border border-dark-border rounded-lg shadow-xl overflow-hidden animate-fade-in">
                         <div className="max-h-60 overflow-y-auto">
                             {options.map(option => (
                                 <button

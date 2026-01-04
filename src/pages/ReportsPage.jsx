@@ -12,6 +12,7 @@ const dateRanges = [
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'week', label: 'This Week' },
+    { value: 'last7', label: 'Last 7 Days' },
     { value: 'month', label: 'This Month' },
     { value: 'last30', label: 'Last 30 Days' },
     { value: 'last3months', label: 'Last 3 Months' },
@@ -31,6 +32,8 @@ export default function ReportsPage() {
     const [categoryData, setCategoryData] = useState([]);
     const [paymentMethods, setPaymentMethods] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState('overview');
+    const [shiftData, setShiftData] = useState([]);
 
     useEffect(() => {
         loadReportData();
@@ -50,7 +53,9 @@ export default function ReportsPage() {
                 const yesterday = subDays(now, 1);
                 return { startDate: getDateString(startOfDay(yesterday)), endDate: getDateString(endOfDay(yesterday)) };
             case 'week':
-                return { startDate: getDateString(startOfWeek(now)), endDate: getDateString(endOfWeek(now)) };
+                return { startDate: getDateString(startOfWeek(now, { weekStartsOn: 1 })), endDate: getDateString(endOfWeek(now, { weekStartsOn: 1 })) };
+            case 'last7':
+                return { startDate: getDateString(startOfDay(subDays(now, 7))), endDate: getDateString(endOfDay(now)) };
             case 'month':
                 return { startDate: getDateString(startOfMonth(now)), endDate: getDateString(endOfMonth(now)) };
             case 'last30':
@@ -97,6 +102,12 @@ export default function ReportsPage() {
                 paymentData = await window.electronAPI.reports.paymentMethods(range);
             } catch (e) { console.error('Error fetching paymentMethods:', e); }
 
+            // Shift Data
+            let shiftHistory = [];
+            try {
+                shiftHistory = await window.electronAPI.shifts.getHistory(range);
+            } catch (e) { console.error('Error fetching shiftHistory:', e); }
+
             setStats(statsData || { total_transactions: 0, total_revenue: 0, average_sale: 0, total_tax: 0 });
             setSalesByDate(salesData.map(d => ({
                 ...d,
@@ -109,6 +120,7 @@ export default function ReportsPage() {
                 color: c.category_color || '#6b7280',
             })));
             setPaymentMethods(paymentData);
+            setShiftData(shiftHistory);
         } catch (error) {
             console.error('Failed to load report data:', error);
             toast.error('Failed to load reports');
@@ -175,11 +187,37 @@ export default function ReportsPage() {
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
+                {/* Tabs */}
+                <div className="flex items-center gap-4 mb-6 border-b border-dark-border pb-1">
+                    <button
+                        onClick={() => setActiveTab('overview')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                            activeTab === 'overview' ? 'text-accent-primary' : 'text-zinc-400 hover:text-white'
+                        }`}
+                    >
+                        Overview
+                        {activeTab === 'overview' && (
+                            <div className="absolute bottom-[-5px] left-0 right-0 h-0.5 bg-accent-primary rounded-full" />
+                        )}
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('shifts')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                            activeTab === 'shifts' ? 'text-accent-primary' : 'text-zinc-400 hover:text-white'
+                        }`}
+                    >
+                        Shift History
+                        {activeTab === 'shifts' && (
+                            <div className="absolute bottom-[-5px] left-0 right-0 h-0.5 bg-accent-primary rounded-full" />
+                        )}
+                    </button>
+                </div>
+
                 {loading ? (
                     <div className="flex items-center justify-center h-64">
                         <div className="w-10 h-10 border-4 border-accent-primary border-t-transparent rounded-full animate-spin" />
                     </div>
-                ) : (
+                ) : activeTab === 'overview' ? (
                     <div className="space-y-6">
                         {/* Stats Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -397,6 +435,74 @@ export default function ReportsPage() {
                                 )}
                             </Card>
                         </div>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        <Card>
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold">Shift History</h3>
+                            </div>
+                            <Table>
+                                <TableHead>
+                                    <TableRow>
+                                        <TableHeader>Start Time</TableHeader>
+                                        <TableHeader>End Time</TableHeader>
+                                        <TableHeader>Employee</TableHeader>
+                                        <TableHeader>Opening Cash</TableHeader>
+                                        <TableHeader>Total Sales</TableHeader>
+                                        <TableHeader>Cash</TableHeader>
+                                        <TableHeader>Card</TableHeader>
+                                        <TableHeader>Credit</TableHeader>
+                                        <TableHeader>Gift Card</TableHeader>
+                                        <TableHeader>Expected Cash</TableHeader>
+                                        <TableHeader>Closing Cash</TableHeader>
+                                        <TableHeader>Diff</TableHeader>
+                                        <TableHeader>Notes</TableHeader>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {shiftData.length > 0 ? (
+                                        shiftData.map((shift) => (
+                                            <TableRow key={shift.id}>
+                                                <TableCell className="whitespace-nowrap">
+                                                    <div>{format(new Date(shift.start_time), 'MMM d, h:mm a')}</div>
+                                                </TableCell>
+                                                <TableCell className="whitespace-nowrap">
+                                                    {shift.end_time ? (
+                                                        <div>{format(new Date(shift.end_time), 'MMM d, h:mm a')}</div>
+                                                    ) : (
+                                                        <span className="text-accent-primary font-medium">Active</span>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>{shift.employee_name}</TableCell>
+                                                <TableCell>{formatCurrency(shift.stats?.opening_cash || shift.opening_cash || 0)}</TableCell>
+                                                <TableCell>{formatCurrency(shift.stats?.total_sales || 0)}</TableCell>
+                                                <TableCell className="text-emerald-400">{formatCurrency(shift.stats?.total_cash_sales || 0)}</TableCell>
+                                                <TableCell className="text-blue-400">{formatCurrency(shift.stats?.total_card_sales || 0)}</TableCell>
+                                                <TableCell className="text-amber-400">{formatCurrency(shift.stats?.total_credit_sales || 0)}</TableCell>
+                                                <TableCell className="text-purple-400">{formatCurrency(shift.stats?.total_gift_card_sales || 0)}</TableCell>
+                                                <TableCell>{formatCurrency(shift.stats?.expected_cash || 0)}</TableCell>
+                                                <TableCell>{shift.end_time ? formatCurrency(shift.closing_cash || 0) : '-'}</TableCell>
+                                                <TableCell>
+                                                    {shift.end_time ? (
+                                                        <span className={(shift.closing_cash - (shift.stats?.expected_cash || 0)) < 0 ? 'text-red-500' : 'text-green-500'}>
+                                                            {formatCurrency((shift.closing_cash || 0) - (shift.stats?.expected_cash || 0))}
+                                                        </span>
+                                                    ) : '-'}
+                                                </TableCell>
+                                                <TableCell className="max-w-[200px] truncate" title={shift.notes}>{shift.notes || '-'}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={14} className="h-24 text-center">
+                                                No shifts found for this period
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </Card>
                     </div>
                 )}
             </div>

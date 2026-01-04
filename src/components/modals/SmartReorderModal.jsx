@@ -28,6 +28,8 @@ export default function SmartReorderModal({ isOpen, onClose, onComplete }) {
                 window.electronAPI.suppliers.getAll()
             ]);
 
+            console.log('DEBUG SmartReorder: Loaded suppliers:', suppliersData);
+
             // Add recommended reorder quantity (up to max_stock or +10 if not set)
             const processed = lowStockData.map(item => ({
                 ...item,
@@ -153,7 +155,7 @@ export default function SmartReorderModal({ isOpen, onClose, onComplete }) {
                             </div>
                         </div>
 
-                        <div className="bg-dark-secondary rounded-lg border border-dark-border overflow-hidden max-h-[400px] overflow-y-auto">
+                        <div className="bg-dark-secondary rounded-lg border border-dark-border max-h-[400px] overflow-y-auto overflow-x-visible">
                             <table className="w-full text-left text-sm">
                                 <thead className="bg-dark-tertiary text-zinc-400 sticky top-0">
                                     <tr>
@@ -192,17 +194,14 @@ export default function SmartReorderModal({ isOpen, onClose, onComplete }) {
                                                     // If already has supplier, just show text (simplify)
                                                     <span>{item.supplier_name}</span>
                                                 ) : (
-                                                    // Dropdown for missing supplier
-                                                    // Dropdown for missing supplier
-                                                    <div onClick={e => e.stopPropagation()}>
-                                                        <Select
-                                                            className="min-w-[150px]"
-                                                            value={item.supplier_id}
-                                                            onChange={(val) => updateSupplier(item.id, val)}
-                                                            options={[{ label: 'Select Supplier...', value: '' }, ...suppliers.map(s => ({ value: s.id, label: s.name }))]}
-                                                            placeholder="Select Supplier..."
-                                                        />
-                                                    </div>
+                                                    // Custom styled dropdown
+                                                    <Select
+                                                        className="min-w-[150px]"
+                                                        value={item.supplier_id}
+                                                        onChange={(val) => updateSupplier(item.id, val)}
+                                                        options={[{ label: 'Select Supplier...', value: '' }, ...suppliers.map(s => ({ value: s.id, label: s.name }))]}
+                                                        placeholder="Select Supplier..."
+                                                    />
                                                 )}
                                             </td>
                                             <td className="p-3 text-center font-mono text-xs">

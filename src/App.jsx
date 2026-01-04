@@ -23,11 +23,13 @@ import SuppliersPage from './pages/SuppliersPage';
 import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import CreditSalesPage from './pages/CreditSalesPage';
 import { useAuthStore, PERMISSIONS } from './stores/authStore';
+import { useSettingsStore } from './stores/settingsStore';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Toaster } from './components/ui/Toast';
 
 function App() {
     const { currentEmployee, isAuthenticated, checkAuth } = useAuthStore();
+    const { loadSettings } = useSettingsStore();
     const [isLoading, setIsLoading] = useState(true);
     const [showSetupWizard, setShowSetupWizard] = useState(false);
     const [isActivated, setIsActivated] = useState(null); // null = loading, false = not activated, true = activated
@@ -35,6 +37,9 @@ function App() {
     useEffect(() => {
         const init = async () => {
             try {
+                // 0. Load Global Settings (Store)
+                await loadSettings();
+
                 // 1. Check Activation Status (New)
                 const activationData = await window.electronAPI.settings.get('activation_data');
                 console.log('App init - activation:', activationData);

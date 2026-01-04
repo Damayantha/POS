@@ -693,7 +693,8 @@ function PaymentModal({ isOpen, onClose, total, onComplete }) {
         try {
             const finalPayment = {
                 method: paymentMethod,
-                amount: paymentMethod === 'cash' ? cashValue : remainingDue,
+                // For cash: record the SALE amount (what stays in drawer), not the tendered amount
+                amount: remainingDue,
                 reference: paymentMethod === 'card' ? 'Card Payment' :
                     paymentMethod === 'credit' ? 'Credit Sale' : null
             };

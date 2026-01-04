@@ -61,8 +61,11 @@ class SyncManager {
 
     // Triggered by DB hooks (create/update)
     triggerSync() {
+        // DISABLED: Causes infinite loop when SyncManager ACKs trigger more syncs
+        console.log('[SyncManager] triggerSync called but DISABLED');
+        return;
         // In Realtime mode, we just push pending changes immediately
-        this.pushLocalChanges();
+        // this.pushLocalChanges();
     }
 
     // 1. OUTBOUND: Local -> Renderer -> Firebase

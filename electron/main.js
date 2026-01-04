@@ -6,9 +6,11 @@ const { initDatabase, runQuery, runInsert, getOne, saveDatabase, addDatabaseChan
 const { v4: uuid } = require('uuid');
 const { getImagesDir } = require('./services/imageService');
 const ReceiptService = require('./services/receiptService');
+const ShiftService = require('./services/shiftService');
 const SyncManager = require('./sync/SyncManager');
 
 const receiptService = new ReceiptService();
+const shiftService = new ShiftService();
 
 function logSystemAction(actionType, description, details = null, employeeId = null) {
   try {
@@ -232,6 +234,29 @@ ipcMain.handle('shell:openExternal', async (_, url) => {
     return { success: false, error: error.message };
   }
 });
+
+// Shifts
+ipcMain.handle('db:shifts:start', (_, { employeeId, openingCash, notes }) => {
+  const shift = shiftService.startShift(employeeId, openingCash, notes);
+  logSystemAction('shift_start', `Shift Started`, { shiftId: shift.id, openingCash }, employeeId);
+  return shift;
+});
+
+ipcMain.handle('db:shifts:end', (_, { shiftId, closingCash, notes }) => {
+  const shift = shiftService.endShift(shiftId, closingCash, notes);
+  logSystemAction('shift_end', `Shift Ended`, { shiftId: shift.id, closingCash }, shift.employee_id);
+  return shift;
+});
+
+ipcMain.handle('db:shifts:getCurrent', (_, employeeId) => {
+  return shiftService.getCurrentShift(employeeId);
+});
+
+ipcMain.handle('db:shifts:getStats', (_, shiftId) => {
+  return shiftService.getShiftStats(shiftId);
+});
+
+ipcMain.handle('db:shifts:getHistory', (_, { startDate, endDate }) => shiftService.getShiftHistory(startDate, endDate));
 
 // Categories
 ipcMain.handle('db:categories:getAll', () => {
@@ -555,6 +580,7 @@ ipcMain.handle('db:employees:delete', (_, id) => {
 
 // Sales
 ipcMain.handle('db:sales:create', (_, sale) => {
+  console.log('DEBUG: db:sales:create called with payments:', JSON.stringify(sale.payments));
   runInsert(`
     INSERT INTO sales (id, receipt_number, employee_id, customer_id, subtotal, tax_amount, discount_amount, total, status, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -613,7 +639,10 @@ ipcMain.handle('db:sales:create', (_, sale) => {
     }
   }
 
-  for (const payment of sale.payments) {
+  if (sale.payments) {
+    console.log('DEBUG: Processing payments loop', sale.payments.length);
+    for (const payment of sale.payments) {
+        console.log('DEBUG: Inserting payment', payment);
     runInsert(`
       INSERT INTO payments (id, sale_id, method, amount, reference)
       VALUES (?, ?, ?, ?, ?)
@@ -645,6 +674,7 @@ ipcMain.handle('db:sales:create', (_, sale) => {
       }
     }
   }
+  } // End of if (sale.payments)
 
   logSystemAction('create', `New Sale #${sale.receipt_number}`, { id: sale.id, total: sale.total }, sale.employee_id);
   SyncManager.triggerSync();
@@ -1065,6 +1095,8 @@ ipcMain.handle('db:returns:create', (_, returnData) => {
   const newStatus = totalReturned >= itemsTotal ? 'refunded' : 'partially_refunded';
 
   runInsert('UPDATE sales SET status = ? WHERE id = ?', [newStatus, returnData.sale_id]);
+
+  logSystemAction('return_processed', `Processed Return: ${returnData.return_number}`, { returnId: returnData.id, saleId: returnData.sale_id, amount: returnData.total_refund }, returnData.employee_id);
 
   return returnData;
 });
@@ -1555,7 +1587,9 @@ ipcMain.handle('purchaseOrders:savePdf', async (_, po) => {
 // SUPPLIERS & RETURNS
 // ==========================================
 ipcMain.handle('db:suppliers:getAll', () => {
-  return runQuery('SELECT * FROM suppliers ORDER BY name');
+  const suppliers = runQuery('SELECT * FROM suppliers ORDER BY name');
+  console.log('DEBUG: suppliers:getAll returned', suppliers.length, 'suppliers');
+  return suppliers;
 });
 
 ipcMain.handle('db:suppliers:getById', (_, id) => {
@@ -1703,11 +1737,12 @@ ipcMain.handle('db:purchaseReturns:create', (_, data) => {
 });
 
 ipcMain.handle('db:suppliers:create', (_, supplier) => {
+  const id = supplier.id || uuid();
   runInsert(`
     INSERT INTO suppliers (id, name, email, phone, address, contact_person, website, notes)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `, [supplier.id, supplier.name, supplier.email, supplier.phone, supplier.address, supplier.contact_person, supplier.website, supplier.notes]);
-  return supplier;
+  `, [id, supplier.name, supplier.email || null, supplier.phone || null, supplier.address || null, supplier.contact_person || null, supplier.website || null, supplier.notes || null]);
+  return { ...supplier, id };
 });
 
 ipcMain.handle('db:suppliers:update', (_, supplier) => {

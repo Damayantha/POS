@@ -7,6 +7,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
     maximize: () => ipcRenderer.invoke('window:maximize'),
     close: () => ipcRenderer.invoke('window:close'),
 
+    // Shifts
+    shifts: {
+        start: (data) => ipcRenderer.invoke('db:shifts:start', data),
+        end: (data) => ipcRenderer.invoke('db:shifts:end', data),
+        getCurrent: (employeeId) => ipcRenderer.invoke('db:shifts:getCurrent', employeeId),
+        getStats: (shiftId) => ipcRenderer.invoke('db:shifts:getStats', shiftId),
+        getHistory: (range) => ipcRenderer.invoke('db:shifts:getHistory', range),
+    },
+
 
     // Categories
     categories: {

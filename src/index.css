@@ -280,3 +280,22 @@ body {
     display: none !important;
   }
 }
+
+/* Remove number input spinners */
+.no-spinners::-webkit-outer-spin-button,
+.no-spinners::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.no-spinners {
+  -moz-appearance: textfield;
+}
+
+/* Force transparent inputs for nested use */
+.input-transparent {
+  background-color: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
