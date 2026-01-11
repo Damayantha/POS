@@ -2,89 +2,39 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { CheckCircle2, Download, Monitor, Apple, Terminal } from 'lucide-react'
-
-interface GitHubAsset {
-    name: string;
-    browser_download_url: string;
-    size: number;
-}
-
-interface ReleaseData {
-    tag_name: string;
-    assets: GitHubAsset[];
-}
+import { CheckCircle2, Download } from 'lucide-react'
 
 type OSType = 'windows' | 'mac' | 'linux';
 
 export function Hero() {
     const [os, setOS] = useState<OSType>('windows')
-    const [selectedOS, setSelectedOS] = useState<OSType | null>(null)
     const [version, setVersion] = useState('')
-    const [assets, setAssets] = useState<GitHubAsset[]>([])
-    const [loading, setLoading] = useState(false)
 
     // Detect OS on mount
     useEffect(() => {
         if (typeof window === 'undefined') return
         const userAgent = window.navigator.userAgent.toLowerCase()
-        // Use setTimeout to avoid synchronous setState in effect
         const timer = setTimeout(() => {
             if (userAgent.includes('mac')) setOS('mac')
             else if (userAgent.includes('linux')) setOS('linux')
-            // windows is default, no need to set
         }, 0)
         return () => clearTimeout(timer)
     }, [])
 
-    // Fetch Latest Release
+    // Fetch Latest Release version for badge
     useEffect(() => {
         const fetchRelease = async () => {
             try {
                 const res = await fetch('https://api.github.com/repos/Damayantha/POS/releases/latest')
                 if (!res.ok) return
-                const data: ReleaseData = await res.json()
+                const data = await res.json()
                 setVersion(data.tag_name)
-                setAssets(data.assets)
             } catch (e) {
                 console.error('Failed to fetch release info', e)
             }
         }
         fetchRelease()
     }, [])
-
-    const activeOS = selectedOS || os
-    
-    // Static download URLs fallback for when API doesn't return assets (draft releases)
-    const STATIC_VERSION = '1.1.0'
-    const STATIC_DOWNLOADS: Record<OSType, string> = {
-        windows: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-Setup-${STATIC_VERSION}.exe`,
-        mac: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-${STATIC_VERSION}.dmg`,
-        linux: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-${STATIC_VERSION}.AppImage`
-    }
-
-    const getDownloadUrl = (targetOS: OSType): string => {
-        const extMap: Record<OSType, string> = {
-            windows: '.exe',
-            mac: '.dmg',
-            linux: '.AppImage'
-        }
-        const asset = assets.find(a => a.name.endsWith(extMap[targetOS]))
-        // Use API asset URL if available, otherwise use static fallback
-        return asset?.browser_download_url || STATIC_DOWNLOADS[targetOS]
-    }
-
-    const getFileSize = (targetOS: OSType): string => {
-        const extMap: Record<OSType, string> = {
-            windows: '.exe',
-            mac: '.dmg',
-            linux: '.AppImage'
-        }
-        const asset = assets.find(a => a.name.endsWith(extMap[targetOS]))
-        if (!asset) return ''
-        const sizeMB = (asset.size / (1024 * 1024)).toFixed(1)
-        return `${sizeMB} MB`
-    }
 
     const getOSLabel = (targetOS: OSType): string => {
         const labels: Record<OSType, string> = {
@@ -93,22 +43,6 @@ export function Hero() {
             linux: 'Linux'
         }
         return labels[targetOS]
-    }
-
-    const getOSIcon = (targetOS: OSType) => {
-        const iconProps = { size: 16 }
-        switch(targetOS) {
-            case 'mac': return <Apple {...iconProps} />
-            case 'linux': return <Terminal {...iconProps} />
-            default: return <Monitor {...iconProps} />
-        }
-    }
-
-    const handleDownload = () => {
-        setLoading(true)
-        const url = getDownloadUrl(activeOS)
-        window.open(url, '_blank')
-        setTimeout(() => setLoading(false), 1000)
     }
 
     return (
@@ -145,34 +79,21 @@ export function Hero() {
                         Manage inventory, sales, and customers with a production-ready desktop application.
                     </p>
 
-                    <div className="flex flex-col gap-4 mb-8">
-                        {/* Primary Download Button */}
-                        <button
-                            onClick={handleDownload}
-                            disabled={loading}
-                            className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-white/90 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] w-fit cursor-pointer disabled:opacity-70"
+                    <div className="flex flex-col sm:flex-row gap-4 mb-8">
+                        {/* Primary Download Button - Links to registration */}
+                        <a
+                            href="#download"
+                            className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-white/90 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
                         >
                             <Download size={20} />
-                            Download for {getOSLabel(activeOS)}
-                            {getFileSize(activeOS) && (
-                                <span className="text-sm opacity-70">({getFileSize(activeOS)})</span>
-                            )}
-                        </button>
-
-                        {/* Platform Selector */}
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className="text-muted-foreground">Also available for:</span>
-                            {(['windows', 'mac', 'linux'] as OSType[]).filter(p => p !== activeOS).map(platform => (
-                                <button
-                                    key={platform}
-                                    onClick={() => setSelectedOS(platform)}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/5 hover:border-white/20 transition-all text-muted-foreground hover:text-white cursor-pointer"
-                                >
-                                    {getOSIcon(platform)}
-                                    {getOSLabel(platform)}
-                                </button>
-                            ))}
-                        </div>
+                            Download for {getOSLabel(os)}
+                        </a>
+                        <a
+                            href="#features"
+                            className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-lg border border-border hover:bg-white/5 transition-all text-foreground"
+                        >
+                            View Features
+                        </a>
                     </div>
 
                     <div className="flex items-center gap-6 text-sm text-muted-foreground">
