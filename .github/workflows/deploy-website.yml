@@ -30,5 +30,8 @@ jobs:
           channelId: "live"
           projectId: "posbycirvex"
           entryPoint: "./website"
+          target: "posbycirvex"
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
+          # Skip extensions check
+          FIREBASE_EXTENSIONS_SKIP_CHECK: true
