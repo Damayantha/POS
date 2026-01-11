@@ -109,7 +109,7 @@ export function DownloadSection() {
                 link.href = downloadUrl;
             } else {
                  // Fallback with correct file names
-                 const v = '1.1.0'
+                 const v = '1.1.1'
                  if (os === 'mac') link.href = `https://github.com/Damayantha/POS/releases/download/v${v}/Cirvex-One-${v}.dmg`
                  else if (os === 'linux') link.href = `https://github.com/Damayantha/POS/releases/download/v${v}/Cirvex-One-${v}.AppImage`
                  else link.href = `https://github.com/Damayantha/POS/releases/download/v${v}/Cirvex-One-Setup-${v}.exe`
