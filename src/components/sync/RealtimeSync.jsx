@@ -1,41 +1,71 @@
-import { useEffect, useRef } from 'react';
-import { collection, onSnapshot, doc, setDoc, query, where } from 'firebase/firestore';
+import { useEffect, useRef, useState } from 'react';
+import { collection, onSnapshot, doc, setDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
+/**
+ * RealtimeSync - Optimized Firebase Sync Component
+ * 
+ * Features:
+ * - Batch Firestore writes (up to 500 per batch)
+ * - Online/offline detection
+ * - Snapshot listeners for real-time updates
+ */
 export function RealtimeSync() {
     const unsubscribers = useRef([]);
     const userRef = useRef(null);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
 
     useEffect(() => {
-        // 1. Auth Listener
+        // Online/offline detection
+        const handleOnline = () => {
+            setIsOnline(true);
+            window.electronAPI?.sync?.setOnline?.(true);
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+            window.electronAPI?.sync?.setOnline?.(false);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Auth Listener
         const unsubAuth = onAuthStateChanged(auth, async (user) => {
             userRef.current = user;
             if (user) {
                 console.log('[RealtimeSync] User logged in:', user.uid);
                 startListeners(user.uid);
-                // Trigger outbound sync to bring any offline changes to cloud
+                // Trigger outbound sync
                 window.electronAPI.sync.trigger();
             } else {
-                console.log('[RealtimeSync] User logged out, clearing listeners');
+                console.log('[RealtimeSync] User logged out');
                 stopListeners();
             }
         });
 
-        // 2. Outbound Listener (Main Process -> Renderer -> Firestore)
+        // Single record outbound (legacy)
         const removeOutboundListener = window.electronAPI.sync.onOutbound((data) => {
             handleOutboundSync(data);
+        });
+
+        // Batch outbound (optimized)
+        const removeOutboundBatchListener = window.electronAPI.sync.onOutboundBatch?.((data) => {
+            handleBatchOutbound(data);
         });
 
         return () => {
             unsubAuth();
             stopListeners();
-            if (removeOutboundListener) removeOutboundListener();
+            removeOutboundListener?.();
+            removeOutboundBatchListener?.();
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
         };
     }, []);
 
     const startListeners = (uid) => {
-        stopListeners(); // Clear existing
+        stopListeners();
 
         const collections = [
             'products', 'customers', 'sales', 'employees',
@@ -48,35 +78,32 @@ export function RealtimeSync() {
         ];
 
         collections.forEach(table => {
-            // Path: tenants/{uid}/{table}
             const colRef = collection(db, `tenants/${uid}/${table}`);
 
             const unsub = onSnapshot(colRef, (snapshot) => {
-                if (snapshot.metadata.hasPendingWrites) {
-                    // This is our own local write reflecting back. Ignore it to prevent loops.
-                    return;
-                }
+                if (snapshot.metadata.hasPendingWrites) return;
 
+                // Batch incoming changes
+                const batch = [];
                 snapshot.docChanges().forEach((change) => {
-                    const data = change.doc.data();
-                    const record = {
-                        ...data,
-                        id: change.doc.id, // Prefer local ID if stored, else remote
-                        remote_id: change.doc.id,
-                        is_synced: 1
-                    };
-
-                    // If data has a 'local_id' field (saved previously), map it back to 'id' for SQLite?
-                    // Or keep 'id' as is.
-                    // For now, we assume incoming 'id' from Firestore might be a UUID.
-                    // If it matches a local UUID, great.
-
                     if (change.type === 'added' || change.type === 'modified') {
-                        // Send to Main Process to update SQLite
-                        console.log(`[RealtimeSync] Incoming ${table}:`, record.id);
-                        window.electronAPI.sync.incoming(table, record);
+                        const data = change.doc.data();
+                        const record = {
+                            ...data,
+                            id: change.doc.id,
+                            remote_id: change.doc.id,
+                            is_synced: 1
+                        };
+                        batch.push({ table, record });
                     }
                 });
+
+                // Send batch to main process
+                if (batch.length > 0) {
+                    console.log(`[RealtimeSync] Incoming batch: ${batch.length} records`);
+                    window.electronAPI.sync.incomingBatch?.(batch) ||
+                        batch.forEach(({ table, record }) => window.electronAPI.sync.incoming(table, record));
+                }
             }, (error) => {
                 console.error(`[RealtimeSync] Error listening to ${table}:`, error);
             });
@@ -86,37 +113,97 @@ export function RealtimeSync() {
     };
 
     const stopListeners = () => {
-        unsubscribers.current.forEach(u => u && u());
+        unsubscribers.current.forEach(u => u?.());
         unsubscribers.current = [];
     };
 
+    // Single record outbound (legacy)
     const handleOutboundSync = async ({ table, record }) => {
-        if (!userRef.current) {
-            console.warn('[RealtimeSync] Cannot sync outbound: No user');
-            return;
-        }
+        if (!userRef.current) return;
 
         try {
             const uid = userRef.current.uid;
-            const docId = record.remote_id || record.id; // Use UUID
-
+            const docId = record.remote_id || record.id;
             const docRef = doc(db, `tenants/${uid}/${table}`, docId);
 
-            const payload = {
+            await setDoc(docRef, {
                 ...record,
                 updated_at: new Date().toISOString(),
                 source: 'desktop'
-            };
+            }, { merge: true });
 
-            await setDoc(docRef, payload, { merge: true });
-            console.log(`[RealtimeSync] Outbound success: ${table}/${docId}`);
-
-            // Acknowledge to Main Process
+            console.log(`[RealtimeSync] Outbound: ${table}/${docId}`);
             window.electronAPI.sync.ack(table, record.id, docId);
-
         } catch (error) {
             console.error('[RealtimeSync] Outbound failed:', error);
         }
+    };
+
+    // Batch outbound (optimized - up to 500 per Firestore batch)
+    const handleBatchOutbound = async ({ batch, timestamp, isRetry }) => {
+        if (!userRef.current || batch.length === 0) return;
+
+        const uid = userRef.current.uid;
+        const successful = [];
+        const failed = [];
+
+        console.log(`[RealtimeSync] Processing batch of ${batch.length} records`);
+
+        // Firestore allows max 500 operations per batch
+        const BATCH_SIZE = 500;
+        const chunks = [];
+        for (let i = 0; i < batch.length; i += BATCH_SIZE) {
+            chunks.push(batch.slice(i, i + BATCH_SIZE));
+        }
+
+        for (const chunk of chunks) {
+            const firestoreBatch = writeBatch(db);
+
+            for (const { table, record } of chunk) {
+                try {
+                    const docId = record.remote_id || record.id;
+                    const docRef = doc(db, `tenants/${uid}/${table}`, docId);
+
+                    firestoreBatch.set(docRef, {
+                        ...record,
+                        updated_at: new Date().toISOString(),
+                        source: 'desktop'
+                    }, { merge: true });
+
+                    successful.push({
+                        table,
+                        localId: record.id,
+                        remoteId: docId
+                    });
+                } catch (e) {
+                    console.error(`[RealtimeSync] Batch prep error ${table}/${record.id}:`, e);
+                    failed.push({ table, record, error: e.message });
+                }
+            }
+
+            try {
+                await firestoreBatch.commit();
+                console.log(`[RealtimeSync] Batch committed: ${chunk.length} records`);
+            } catch (e) {
+                console.error('[RealtimeSync] Batch commit failed:', e);
+                // Move all to failed
+                for (const { table, record } of chunk) {
+                    failed.push({ table, record, error: e.message });
+                    // Remove from successful
+                    const idx = successful.findIndex(s => s.localId === record.id);
+                    if (idx >= 0) successful.splice(idx, 1);
+                }
+            }
+        }
+
+        // Send batch ACK to main process
+        window.electronAPI.sync.batchAck?.({
+            successful,
+            failed,
+            timestamp: Date.now()
+        }) || successful.forEach(s => window.electronAPI.sync.ack(s.table, s.localId, s.remoteId));
+
+        console.log(`[RealtimeSync] Batch complete: ${successful.length} ok, ${failed.length} failed`);
     };
 
     return null; // Headless component

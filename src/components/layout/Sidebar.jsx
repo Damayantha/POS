@@ -17,7 +17,8 @@ import {
     CreditCard,
     FileText,
     Truck,
-    DollarSign
+    DollarSign,
+    Sparkles
 } from 'lucide-react';
 import { useAuthStore, PERMISSIONS } from '../../stores/authStore';
 import { useState, useEffect } from 'react';
@@ -40,6 +41,7 @@ const navItems = [
     { path: '/barcode-labels', icon: Barcode, label: 'Barcode Labels', permission: PERMISSIONS.PRODUCTS_VIEW },
     { path: '/employees', icon: UserCog, label: 'Employees', permission: PERMISSIONS.EMPLOYEES_VIEW },
     { path: '/reports', icon: BarChart3, label: 'Reports', permission: PERMISSIONS.REPORTS_VIEW },
+    { path: '/ai-chat', icon: Sparkles, label: 'AI Assistant', permission: PERMISSIONS.DASHBOARD_VIEW },
     { path: '/settings', icon: Settings, label: 'Settings', permission: PERMISSIONS.SETTINGS_VIEW },
     { path: '/profile', icon: UserCog, label: 'Profile', permission: 'profile.view' }, // Use string literal to avoid import cycle or missing export
 ];

@@ -490,6 +490,21 @@ function runMigrations() {
             db.run('CREATE INDEX IF NOT EXISTS idx_system_logs_date ON system_logs(created_at)');
         } catch (e) { console.log('system_logs table check:', e.message); }
 
+        // ==========================================
+        // MIGRATION: E-commerce Integration Tables
+        // ==========================================
+        try {
+            // Load e-commerce schema
+            const ecommerceSchemaPath = path.join(__dirname, 'ecommerce_schema.sql');
+            if (fs.existsSync(ecommerceSchemaPath)) {
+                const ecommerceSchema = fs.readFileSync(ecommerceSchemaPath, 'utf8');
+                db.exec(ecommerceSchema);
+                console.log('E-commerce schema applied successfully');
+            }
+        } catch (e) {
+            console.log('E-commerce schema migration:', e.message);
+        }
+
         // Setup Triggers for Automatic Sync Flagging
         setupSyncTriggers(db, tablesToSync);
     }

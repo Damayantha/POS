@@ -292,21 +292,57 @@ contextBridge.exposeInMainWorld('electronAPI', {
         trigger: () => ipcRenderer.invoke('sync:trigger'),
         forcePush: () => ipcRenderer.invoke('sync:force-push'),
         setToken: (token) => ipcRenderer.invoke('sync:set-token', token),
+        setOnline: (isOnline) => ipcRenderer.invoke('sync:set-online', isOnline),
+        getStatus: () => ipcRenderer.invoke('sync:get-status'),
         onStatusChange: (callback) => {
             const subscription = (_event, ...args) => callback(...args);
             ipcRenderer.on('sync:status-changed', subscription);
             return () => ipcRenderer.removeListener('sync:status-changed', subscription);
         },
-        // Outbound: Main -> Renderer -> Firebase
+        // Outbound: Main -> Renderer -> Firebase (single record - legacy)
         onOutbound: (callback) => {
             const subscription = (_event, ...args) => callback(...args);
             ipcRenderer.on('sync:outbound', subscription);
             return () => ipcRenderer.removeListener('sync:outbound', subscription);
         },
-        // Inbound: Renderer -> Main
+        // Outbound Batch: Main -> Renderer -> Firebase (optimized)
+        onOutboundBatch: (callback) => {
+            const subscription = (_event, data) => callback(data);
+            ipcRenderer.on('sync:outbound-batch', subscription);
+            return () => ipcRenderer.removeListener('sync:outbound-batch', subscription);
+        },
+        // Inbound: Renderer -> Main (single record)
         incoming: (table, record) => ipcRenderer.invoke('sync:incoming', { table, record }),
-        // Acknowledge: Renderer -> Main (Item synced)
+        // Inbound Batch: Renderer -> Main (optimized)
+        incomingBatch: (batch) => ipcRenderer.invoke('sync:incoming-batch', { batch }),
+        // Acknowledge: Renderer -> Main (single item synced - legacy)
         ack: (table, localId, remoteId) => ipcRenderer.invoke('sync:ack', { table, localId, remoteId }),
+        // Batch Acknowledge: Renderer -> Main (optimized)
+        batchAck: (data) => ipcRenderer.invoke('sync:batch-ack', data),
+    },
+
+    // AI / Gemini Features
+    ai: {
+        getInsights: (salesData) => ipcRenderer.invoke('ai:get-insights', salesData),
+        updateConfig: (config) => ipcRenderer.invoke('ai:update-config', config),
+        
+        // Streaming Chat
+        chatStream: (history, message, model, images) => ipcRenderer.send('ai:chat-stream', { history, message, model, images }),
+        onChatChunk: (callback) => {
+            const subscription = (_event, chunk) => callback(chunk);
+            ipcRenderer.on('ai:chat-chunk', subscription);
+            return () => ipcRenderer.removeListener('ai:chat-chunk', subscription);
+        },
+        onChatComplete: (callback) => {
+            const subscription = () => callback();
+            ipcRenderer.on('ai:chat-complete', subscription);
+            return () => ipcRenderer.removeListener('ai:chat-complete', subscription);
+        },
+        onChatError: (callback) => {
+            const subscription = (_event, error) => callback(error);
+            ipcRenderer.on('ai:chat-error', subscription);
+            return () => ipcRenderer.removeListener('ai:chat-error', subscription);
+        }
     },
 
     // Shell (for opening external links)
@@ -315,6 +351,49 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
     },
 
+    // E-commerce Integrations
+    ecommerce: {
+        // Connections
+        getConnections: () => ipcRenderer.invoke('ecommerce:getConnections'),
+        addConnection: (connection) => ipcRenderer.invoke('ecommerce:addConnection', connection),
+        testConnection: (connectionId) => ipcRenderer.invoke('ecommerce:testConnection', connectionId),
+        removeConnection: (connectionId) => ipcRenderer.invoke('ecommerce:removeConnection', connectionId),
+        
+        // Sync
+        sync: (connectionId) => ipcRenderer.invoke('ecommerce:sync', connectionId),
+        syncAll: () => ipcRenderer.invoke('ecommerce:syncAll'),
+        
+        // Product Mappings
+        getMappings: (connectionId) => ipcRenderer.invoke('ecommerce:getMappings', connectionId),
+        autoMapProducts: (connectionId) => ipcRenderer.invoke('ecommerce:autoMapProducts', connectionId),
+        createMapping: (mapping) => ipcRenderer.invoke('ecommerce:createMapping', mapping),
+        deleteMapping: (mappingId) => ipcRenderer.invoke('ecommerce:deleteMapping', mappingId),
+        getUnmappedProducts: (connectionId) => ipcRenderer.invoke('ecommerce:getUnmappedProducts', connectionId),
+        
+        // Logs
+        getSyncLogs: (connectionId, limit) => ipcRenderer.invoke('ecommerce:getSyncLogs', connectionId, limit),
+        
+        // OAuth (Etsy)
+        startOAuth: (platform, apiKey) => ipcRenderer.invoke('ecommerce:oauth:start', platform, apiKey),
+        completeOAuth: (code, state, codeVerifier) => ipcRenderer.invoke('ecommerce:oauth:complete', code, state, codeVerifier),
+        
+        // Status Events
+        onSyncStatus: (callback) => {
+            const subscription = (_event, ...args) => callback(...args);
+            ipcRenderer.on('ecommerce:syncStatus', subscription);
+            return () => ipcRenderer.removeListener('ecommerce:syncStatus', subscription);
+        },
+        
+        // Webhook events (from Firestore listener)
+        webhookEvent: (event) => ipcRenderer.invoke('ecommerce:webhookEvent', event),
+        
+        // Shopify OAuth complete listener
+        onShopifyOAuthComplete: (callback) => {
+            const subscription = (_event, data) => callback(data);
+            ipcRenderer.on('ecommerce:shopify-oauth-complete', subscription);
+            return () => ipcRenderer.removeListener('ecommerce:shopify-oauth-complete', subscription);
+        },
+    },
 
 });
 

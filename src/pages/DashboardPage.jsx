@@ -6,6 +6,8 @@ import { format, startOfDay, endOfDay, startOfMonth, endOfMonth } from 'date-fns
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { useAuthStore } from '../stores/authStore';
 
+import AIInsightsWidget from '../components/dashboard/AIInsightsWidget';
+
 export default function DashboardPage() {
     const [stats, setStats] = useState({
         todaySales: 0,
@@ -213,6 +215,9 @@ export default function DashboardPage() {
                         </Button>
                     </div>
                 </div>
+
+                {/* AI Insights Widget */}
+                <AIInsightsWidget salesData={{ stats, recentSales, topProducts }} />
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

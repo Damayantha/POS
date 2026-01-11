@@ -160,96 +160,89 @@ export default function PurchaseOrdersPage() {
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
                     {orders.map(po => (
-                        <Card key={po.id} className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                            <div className="flex items-center gap-4 w-full md:w-auto">
-                                <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${po.status === 'received' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'
-                                    }`}>
-                                    <FileText className="w-6 h-6" />
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold text-lg">{po.supplier_name || 'Unknown Supplier'}</h3>
-                                    <div className="flex flex-wrap items-center gap-2 md:gap-4 text-sm text-zinc-400">
-                                        <span className="flex items-center gap-1">
-                                            <Package className="w-3 h-3" />
-                                            #{po.po_number || po.id.slice(0, 8)}
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <Calendar className="w-3 h-3" />
-                                            {new Date(po.created_at).toLocaleDateString()}
-                                        </span>
+                        <Card key={po.id} className="p-4">
+                            <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                                {/* Left: Icon + Info */}
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center shrink-0 ${po.status === 'received' ? 'bg-green-500/10 text-green-500' : 'bg-blue-500/10 text-blue-500'}`}>
+                                        <FileText className="w-6 h-6" />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <h3 className="font-semibold text-lg truncate">{po.supplier_name || 'Unknown Supplier'}</h3>
+                                        <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-400">
+                                            <span className="flex items-center gap-1">
+                                                <Package className="w-3 h-3" />
+                                                #{po.po_number || po.id.slice(0, 8)}
+                                            </span>
+                                            <span className="flex items-center gap-1">
+                                                <Calendar className="w-3 h-3" />
+                                                {new Date(po.created_at).toLocaleDateString()}
+                                            </span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
-                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full md:w-auto">
-                                <div className="flex items-center justify-between w-full sm:w-auto gap-4">
-                                    <div className="text-left sm:text-right">
-                                        <p className="text-sm text-zinc-400">Total Amount</p>
+                                {/* Center: Amount + Status */}
+                                <div className="flex items-center gap-6">
+                                    <div className="text-right">
+                                        <p className="text-xs text-zinc-500 uppercase tracking-wide">Total Amount</p>
                                         <p className="font-bold text-lg">{formatCurrency(po.total)}</p>
                                         {po.amount_paid > 0 && (
                                             <p className="text-xs text-green-400">Paid: {formatCurrency(po.amount_paid)}</p>
                                         )}
-                                        {po.total - (po.amount_paid || 0) > 0.01 && (
-                                            <p className="text-xs text-red-400 font-semibold">
-                                                Due: {formatCurrency(po.total - (po.amount_paid || 0))}
-                                            </p>
-                                        )}
                                     </div>
-                                    <div className="flex flex-col gap-1 items-end">
-                                        <div className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${po.status === 'received' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'
-                                            }`}>
+                                    <div className="flex flex-col gap-1 items-center min-w-[80px]">
+                                        <div className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${po.status === 'received' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'}`}>
                                             {po.status}
                                         </div>
                                         {po.payment_status && (
                                             <div className={`px-2 py-0.5 rounded-full text-[10px] uppercase border ${po.payment_status === 'paid' ? 'border-green-500/30 text-green-500' :
                                                 po.payment_status === 'partial' ? 'border-amber-500/30 text-amber-500' :
-                                                    'border-red-500/30 text-red-500'
-                                                }`}>
+                                                    'border-red-500/30 text-red-500'}`}>
                                                 {po.payment_status}
                                             </div>
                                         )}
                                     </div>
                                 </div>
 
-                                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-                                    {/* Delete Button - only if not received and no payments */}
+                                {/* Right: Action Buttons - Consistent Row */}
+                                <div className="flex items-center gap-2 border-l border-dark-border pl-4">
+                                    {/* Delete - only if not received and no payments */}
                                     {po.status !== 'received' && (!po.amount_paid || po.amount_paid === 0) && (
                                         <Button size="sm" variant="ghost" onClick={() => handleDelete(po.id)} title="Delete Order">
                                             <Trash2 className="w-4 h-4 text-red-400 hover:text-red-300" />
                                         </Button>
                                     )}
 
-                                    <Button size="sm" variant="outline" onClick={() => handleSavePdf(po)} title="Save PDF">
+                                    <Button size="sm" variant="ghost" onClick={() => handleSavePdf(po)} title="Save PDF">
                                         <FileText className="w-4 h-4" />
                                     </Button>
-                                    <Button size="sm" variant="outline" onClick={() => handleEmailClick(po)} title="Email PO">
+                                    <Button size="sm" variant="ghost" onClick={() => handleEmailClick(po)} title="Email PO">
                                         <Mail className="w-4 h-4" />
                                     </Button>
-
-                                    {/* View Details */}
-                                    <Button size="sm" variant="outline" onClick={() => handleViewDetails(po)} title="View Details">
+                                    <Button size="sm" variant="ghost" onClick={() => handleViewDetails(po)} title="View Details">
                                         <Eye className="w-4 h-4" />
                                     </Button>
+
+                                    <div className="w-px h-6 bg-dark-border mx-1" />
 
                                     {/* Pay Button - if not fully paid */}
                                     {po.payment_status !== 'paid' && (
                                         <Button size="sm" variant="secondary" onClick={() => handlePayClick(po)} title="Record Payment">
-                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            <CreditCard className="w-4 h-4 mr-1.5" />
                                             Pay
                                         </Button>
                                     )}
 
-                                    {/* Return Button - if received */}
-                                    {po.status === 'received' && (
-                                        <Button size="sm" variant="secondary" onClick={() => handleReturnClick(po)} title="Return Items">
-                                            <RefreshCcw className="w-4 h-4 mr-2" />
+                                    {/* Primary Status Action */}
+                                    {po.status === 'received' ? (
+                                        <Button size="sm" variant="secondary" onClick={() => handleReturnClick(po)}>
+                                            <RefreshCcw className="w-4 h-4 mr-1.5" />
                                             Return
                                         </Button>
-                                    )}
-
-                                    {po.status !== 'received' && (
-                                        <Button size="sm" onClick={() => handleReceiveStock(po.id)}>
-                                            <CheckCircle className="w-4 h-4 mr-2" />
+                                    ) : (
+                                        <Button size="sm" variant="primary" onClick={() => handleReceiveStock(po.id)}>
+                                            <CheckCircle className="w-4 h-4 mr-1.5" />
                                             Receive
                                         </Button>
                                     )}

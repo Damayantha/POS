@@ -90,8 +90,8 @@ export default function SetupWizard({ onComplete }) {
                     toast.error('Please enter admin name');
                     return false;
                 }
-                if (!adminData.pin || adminData.pin.length < 4) {
-                    toast.error('PIN must be at least 4 digits');
+                if (!adminData.pin || adminData.pin.length !== 4) {
+                    toast.error('PIN must be exactly 4 digits');
                     return false;
                 }
                 if (adminData.pin !== adminData.confirmPin) {
@@ -247,15 +247,15 @@ export default function SetupWizard({ onComplete }) {
                                 label="PIN *"
                                 type="password"
                                 value={adminData.pin}
-                                onChange={(e) => setAdminData(prev => ({ ...prev, pin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
-                                placeholder="4-6 digits"
+                                onChange={(e) => setAdminData(prev => ({ ...prev, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                                placeholder="4 digits"
                                 required
                             />
                             <Input
                                 label="Confirm PIN *"
                                 type="password"
                                 value={adminData.confirmPin}
-                                onChange={(e) => setAdminData(prev => ({ ...prev, confirmPin: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                                onChange={(e) => setAdminData(prev => ({ ...prev, confirmPin: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
                                 placeholder="Confirm PIN"
                                 required
                             />

@@ -8,6 +8,8 @@ const { getImagesDir } = require('./services/imageService');
 const ReceiptService = require('./services/receiptService');
 const ShiftService = require('./services/shiftService');
 const SyncManager = require('./sync/SyncManager');
+const EcommerceSyncManager = require('./ecommerce/EcommerceSyncManager');
+const GeminiManager = require('./ai/GeminiManager');
 
 const receiptService = new ReceiptService();
 const shiftService = new ShiftService();
@@ -64,48 +66,89 @@ protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true, supportFetchAPI: true, stream: true } }
 ]);
 
-// App lifecycle
-app.whenReady().then(async () => {
-  // Initialize database
-  await initDatabase();
-
-  // Initialize Sync Manager
-  await SyncManager.init();
-
-  if (process.defaultApp) {
-    if (process.argv.length >= 2) {
-      app.setAsDefaultProtocolClient('posbycirvex', process.execPath, [path.resolve(process.argv[1])])
+// Handle deep links from any source
+function handleDeepLink(url) {
+  console.log('[DeepLink] Received:', url);
+  
+  // Handle Shopify OAuth callback
+  if (url.includes('posbycirvex://shopify/callback')) {
+    const urlObj = new URL(url);
+    const token = urlObj.searchParams.get('token');
+    const shop = urlObj.searchParams.get('shop');
+    const name = urlObj.searchParams.get('name');
+    const scope = urlObj.searchParams.get('scope');
+    
+    if (token && shop) {
+      console.log('[DeepLink] Shopify OAuth callback received for:', shop);
+      // Send to renderer to complete the connection
+      if (mainWindow) {
+        mainWindow.webContents.send('ecommerce:shopify-oauth-complete', {
+          accessToken: token,
+          storeUrl: shop,
+          storeName: name || shop,
+          scope: scope
+        });
+      }
     }
-  } else {
-    app.setAsDefaultProtocolClient('posbycirvex')
+    return;
   }
+  
+  // Other deep links (Supabase, etc.)
+  if (mainWindow) {
+    mainWindow.webContents.send('supabase-oauth-callback', url);
+  }
+}
 
-  // Handle deep links on Windows (second instance)
+// Request single instance lock - prevents multiple app instances
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running, quit this one
+  app.quit();
+} else {
+  // Handle deep links on Windows (second instance trying to open)
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Someone tried to run a second instance, we should focus our window.
     if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore()
-      mainWindow.focus()
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
     }
 
-    // Find the deep link in command line args
+    // Find the deep link in command line args (Windows passes protocol URL as argument)
     const url = commandLine.find(arg => arg.startsWith('posbycirvex://'));
-    if (url) handleDeepLink(url);
-  });
-
-  // Handle deep links (macOS)
-  app.on('open-url', (event, url) => {
-    event.preventDefault();
-    handleDeepLink(url);
-  });
-
-  function handleDeepLink(url) {
-    console.log('[DeepLink] Received:', url);
-    if (mainWindow) {
-      // Send to renderer
-      mainWindow.webContents.send('supabase-oauth-callback', url);
+    if (url) {
+      console.log('[DeepLink] Received from second instance:', url);
+      handleDeepLink(url);
     }
-  }
+  });
+
+  // App lifecycle
+  app.whenReady().then(async () => {
+    // Initialize database
+    await initDatabase();
+
+    // Initialize Sync Manager (Firebase)
+    await SyncManager.init();
+
+    // Initialize E-commerce Sync Manager
+    EcommerceSyncManager.init(null, null); // Will set mainWindow after createWindow()
+    
+    // Initialize AI Manager
+    await GeminiManager.init();
+
+    if (process.defaultApp) {
+      if (process.argv.length >= 2) {
+        app.setAsDefaultProtocolClient('posbycirvex', process.execPath, [path.resolve(process.argv[1])])
+      }
+    } else {
+      app.setAsDefaultProtocolClient('posbycirvex')
+    }
+
+    // Handle deep links (macOS)
+    app.on('open-url', (event, url) => {
+      event.preventDefault();
+      handleDeepLink(url);
+    });
 
   // Register app protocol for serving images
   protocol.registerFileProtocol('app', (request, callback) => {
@@ -127,7 +170,8 @@ app.whenReady().then(async () => {
       createWindow();
     }
   });
-});
+  });
+}
 
 // App lifecycle
 
@@ -158,6 +202,27 @@ ipcMain.handle('sync:ack', async (_, data) => {
   await SyncManager.handleAck(data);
 });
 
+// Batch ACK (optimized)
+ipcMain.handle('sync:batch-ack', async (_, data) => {
+  await SyncManager.handleBatchAck(data);
+});
+
+// Batch incoming (optimized)
+ipcMain.handle('sync:incoming-batch', async (_, data) => {
+  await SyncManager.handleIncomingBatch(data);
+});
+
+// Online/offline status
+ipcMain.handle('sync:set-online', async (_, isOnline) => {
+  SyncManager.setOnlineStatus(isOnline);
+  return true;
+});
+
+// Get sync status
+ipcMain.handle('sync:get-status', async () => {
+  return SyncManager.getStatus();
+});
+
 ipcMain.handle('sync:set-token', async (_, token) => {
   // No-op in Realtime mode
   return true;
@@ -183,8 +248,33 @@ ipcMain.handle('sync:force-push', async () => {
     }
   }
 
-  SyncManager.triggerSync();
+  SyncManager.forceSyncNow();
   return true;
+});
+
+// ==========================================
+// AI / Gemini IPC
+// ==========================================
+
+ipcMain.handle('ai:get-insights', async (_, salesData) => {
+  return await GeminiManager.generateInsights(salesData);
+});
+
+ipcMain.handle('ai:update-config', async (_, config) => {
+  await GeminiManager.updateConfig(config);
+  return true;
+});
+
+ipcMain.on('ai:chat-stream', async (event, { history, message, model, images }) => {
+  try {
+    await GeminiManager.chatStream(history, message, (chunk) => {
+      event.sender.send('ai:chat-chunk', chunk);
+    }, { model, images });
+    event.sender.send('ai:chat-complete');
+  } catch (error) {
+    console.error('AI Chat Error:', error);
+    event.sender.send('ai:chat-error', error.message);
+  }
 });
 
 // Supabase API Proxy

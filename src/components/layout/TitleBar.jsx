@@ -44,18 +44,37 @@ export function TitleBar() {
 
     const getSyncIcon = () => {
         const currentStatus = syncStatus?.status || 'idle';
+        const enabled = syncStatus?.enabled !== false; // If not explicitly false, assume enabled
+        
+        if (!enabled) {
+            return <CloudOff size={14} className="text-zinc-500" />;
+        }
+        
         switch (currentStatus) {
             case 'syncing':
                 return <RefreshCw size={14} className="text-blue-400 animate-spin" />;
             case 'error':
                 return <AlertCircle size={14} className="text-red-400" title={syncStatus?.details?.error} />;
             case 'offline':
-                return <CloudOff size={14} className="text-zinc-500" />;
+                return <CloudOff size={14} className="text-amber-500" />;
             case 'idle':
             default:
-                // Check if we have synced recently? 
-                // For now just show CloudCheck or Cloud
                 return <Cloud size={14} className="text-green-400" />;
+        }
+    };
+
+    const getSyncText = () => {
+        const currentStatus = syncStatus?.status || 'idle';
+        const enabled = syncStatus?.enabled !== false;
+        
+        if (!enabled) return 'Local';
+        
+        switch (currentStatus) {
+            case 'syncing': return 'Syncing';
+            case 'error': return 'Error';
+            case 'offline': return 'Offline';
+            case 'idle': return 'Synced';
+            default: return currentStatus;
         }
     };
 
@@ -63,18 +82,21 @@ export function TitleBar() {
         <div className="h-10 bg-dark-secondary border-b border-dark-border flex items-center justify-between px-4 titlebar-drag">
             {/* Logo */}
             <div className="flex items-center gap-3 titlebar-no-drag">
-                <div className="w-6 h-6 rounded-lg bg-white flex items-center justify-center">
-                    <Terminal size={14} className="text-black" />
+                <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
+                    <Terminal size={14} className="text-white" />
                 </div>
-                <span className="font-semibold text-sm">POSbyCirvex</span>
+                <div className="flex flex-col leading-none">
+                    <span className="font-bold text-sm bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Cirvex One</span>
+                    <span className="text-[9px] text-zinc-500 font-medium">Powered by Gemini AI</span>
+                </div>
             </div>
 
             {/* Center - Date/Time & Sync */}
             <div className="flex items-center gap-4 text-sm text-zinc-400">
-                <div className="flex items-center gap-2 px-3 py-1 bg-dark-tertiary rounded-full" title={`Sync Status: ${syncStatus?.status || 'unknown'}`}>
+                <div className="flex items-center gap-2 px-3 py-1 bg-dark-tertiary rounded-full" title={`Sync Status: ${getSyncText()}`}>
                     {getSyncIcon()}
                     <span className="text-xs uppercase tracking-wider font-medium">
-                        {syncStatus?.status === 'idle' ? 'Synced' : (syncStatus?.status || 'Unknown')}
+                        {getSyncText()}
                     </span>
                 </div>
                 <div className="w-px h-4 bg-dark-border mx-2"></div>

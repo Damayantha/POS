@@ -85,61 +85,86 @@ export default function CreatePurchaseReturnModal({ isOpen, onClose, onComplete,
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Create Return for PO #${purchaseOrder.po_number || 'Draft'}`}>
             <ModalBody>
-                <div className="space-y-4">
-                    <div className="bg-dark-tertiary p-3 rounded-lg flex justify-between items-center">
-                        <span className="text-zinc-400">Total Refund Amount</span>
-                        <span className="text-xl font-bold text-red-400">${totalReturnAmount.toFixed(2)}</span>
+                <div className="flex flex-col h-full">
+                    {/* Item List Header */}
+                    <div className="grid grid-cols-12 gap-3 text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 px-3">
+                        <div className="col-span-5">Item Details</div>
+                        <div className="col-span-2">Return Qty</div>
+                        <div className="col-span-3">Reason</div>
+                        <div className="col-span-2 text-right">Refund</div>
                     </div>
 
-                    <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-2">
+                    {/* Scrollable Items */}
+                    <div className="flex-1 overflow-y-auto min-h-[200px] max-h-[40vh] space-y-1 mb-4 pr-1">
                         {returnItems.map((item, index) => (
-                            <div key={item.id || index} className="p-3 bg-dark-tertiary/50 rounded-lg border border-dark-border">
-                                <div className="flex justify-between items-start mb-2">
-                                    <div>
-                                        <p className="font-medium">{item.product_name || item.name}</p>
-                                        <p className="text-xs text-zinc-500">Purchased: {item.quantity} units @ ${item.unit_cost?.toFixed(2)}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-sm font-semibold">${(item.returnQuantity * item.unit_cost).toFixed(2)}</p>
-                                    </div>
+                            <div key={item.id || index} className="grid grid-cols-12 gap-3 items-center p-3 bg-dark-tertiary/50 hover:bg-dark-tertiary rounded-lg border border-dark-border transition-colors">
+                                
+                                {/* Item Name & Purchase Info */}
+                                <div className="col-span-5 min-w-0">
+                                    <p className="font-medium text-sm truncate" title={item.product_name || item.name}>
+                                        {item.product_name || item.name}
+                                    </p>
+                                    <p className="text-xs text-zinc-500 mt-0.5">
+                                        Purchased: <span className="text-zinc-300">{item.quantity}</span> @ ${item.unit_cost?.toFixed(2)}
+                                    </p>
                                 </div>
-                                <div className="flex gap-2">
-                                    <div className="w-24">
-                                        <Input
-                                            type="number"
-                                            value={item.returnQuantity}
-                                            onChange={(e) => handleQuantityChange(index, e.target.value)}
-                                            min="0"
-                                            max={item.quantity}
-                                            className="h-8 text-sm"
-                                        />
-                                    </div>
-                                    <div className="flex-1">
-                                        <Select
-                                            className="w-full"
-                                            value={item.reason}
-                                            onChange={(val) => handleReasonChange(index, val)}
-                                            options={[
-                                                { value: 'damaged', label: 'Damaged' },
-                                                { value: 'wrong_item', label: 'Wrong Item' },
-                                                { value: 'expired', label: 'Expired' },
-                                                { value: 'other', label: 'Other' }
-                                            ]}
-                                        />
-                                    </div>
+
+                                {/* Return Qty Input */}
+                                <div className="col-span-2">
+                                    <Input
+                                        type="number"
+                                        value={item.returnQuantity}
+                                        onChange={(e) => handleQuantityChange(index, e.target.value)}
+                                        min="0"
+                                        max={item.quantity}
+                                        className="h-9 text-sm text-center"
+                                        placeholder="0"
+                                    />
+                                </div>
+
+                                {/* Reason Select */}
+                                <div className="col-span-3">
+                                    <Select
+                                        className="w-full text-xs h-9"
+                                        value={item.reason}
+                                        onChange={(val) => handleReasonChange(index, val)}
+                                        options={[
+                                            { value: 'damaged', label: 'Damaged' },
+                                            { value: 'wrong_item', label: 'Wrong Item' },
+                                            { value: 'expired', label: 'Expired' },
+                                            { value: 'other', label: 'Other' }
+                                        ]}
+                                    />
+                                </div>
+
+                                {/* Line Total */}
+                                <div className="col-span-2 text-right">
+                                    <p className={`font-semibold text-sm ${item.returnQuantity > 0 ? 'text-red-400' : 'text-zinc-600'}`}>
+                                        ${(item.returnQuantity * item.unit_cost).toFixed(2)}
+                                    </p>
                                 </div>
                             </div>
                         ))}
                     </div>
 
-                    <div className="space-y-1">
-                        <label className="text-sm text-zinc-400">Notes</label>
-                        <textarea
-                            className="w-full bg-dark-tertiary border border-dark-border rounded-lg p-3 text-white focus:outline-none focus:border-accent-primary min-h-[60px]"
-                            value={notes}
-                            onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Reason for return..."
-                        />
+                    {/* Footer Section: Notes & Total */}
+                    <div className="space-y-4 pt-4 border-t border-dark-border">
+                        <div className="flex justify-between items-start gap-4">
+                            <div className="flex-1">
+                                <label className="text-sm font-medium text-zinc-400 mb-1.5 block">Return Notes</label>
+                                <textarea
+                                    className="w-full bg-dark-tertiary border border-dark-border rounded-lg p-3 text-sm text-white focus:outline-none focus:border-accent-primary min-h-[80px] resize-none"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Describe the reason for return..."
+                                />
+                            </div>
+                            
+                            <div className="w-48 flex flex-col items-end pt-7">
+                                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Total Refund</p>
+                                <p className="text-3xl font-bold text-red-400">${totalReturnAmount.toFixed(2)}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </ModalBody>

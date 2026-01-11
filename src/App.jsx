@@ -11,6 +11,7 @@ import CustomersPage from './pages/CustomersPage';
 import EmployeesPage from './pages/EmployeesPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import AIChatPage from './pages/AIChatPage';
 import DashboardPage from './pages/DashboardPage';
 import GiftCardsPage from './pages/GiftCardsPage';
 import BundlesPage from './pages/BundlesPage';
@@ -26,6 +27,7 @@ import { useAuthStore, PERMISSIONS } from './stores/authStore';
 import { useSettingsStore } from './stores/settingsStore';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Toaster } from './components/ui/Toast';
+import { EcommerceWebhookListener } from './components/ecommerce/EcommerceWebhookListener';
 
 function App() {
     const { currentEmployee, isAuthenticated, checkAuth } = useAuthStore();
@@ -215,7 +217,7 @@ function App() {
                             <ReportsPage />
                         </ProtectedRoute>
                     } />
-
+                    <Route path="/ai-chat" element={<AIChatPage />} />
                     <Route path="/settings" element={
                         <ProtectedRoute permission={PERMISSIONS.SETTINGS_VIEW}>
                             <SettingsPage />
@@ -235,6 +237,7 @@ function App() {
                 </Routes>
             </MainLayout>
             <Toaster />
+            <EcommerceWebhookListener />
         </HashRouter>
     );
 }

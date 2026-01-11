@@ -12,6 +12,7 @@ import { currencies } from '../data/currencies';
 import { db, auth } from '../lib/firebase';
 import { collection, getDocs, doc, onSnapshot, deleteDoc } from 'firebase/firestore';
 import { SystemLogs } from '../components/settings/SystemLogs';
+import { EcommerceSettings } from '../components/settings/EcommerceSettings';
 
 
 const baseTabs = [
@@ -19,6 +20,7 @@ const baseTabs = [
     { id: 'tax', label: 'Tax Settings' },
     { id: 'mail', label: 'Email Settings' },
     { id: 'cloud', label: 'Cloud Sync' },
+    { id: 'ecommerce', label: 'E-commerce' },
     { id: 'receipt', label: 'Receipt' },
     { id: 'backup', label: 'Backup' },
 ];
@@ -738,6 +740,12 @@ export default function SettingsPage() {
 
 
                                 </div>
+                            </Card>
+                        )}
+
+                        {activeTab === 'ecommerce' && (
+                            <Card className="p-6">
+                                <EcommerceSettings />
                             </Card>
                         )}
 
