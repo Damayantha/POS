@@ -6,7 +6,7 @@
  * Handles conflict resolution (newest wins by default).
  */
 
-const { ipcMain, BrowserWindow } = require('electron');
+const { ipcMain } = require('electron');
 const { v4: uuid } = require('uuid');
 
 // Adapters
@@ -635,45 +635,21 @@ class EcommerceSyncManager {
 
     /**
      * Start Etsy OAuth flow
+     * TODO: Implement when EtsyAdapter is ready
      */
-    startEtsyOAuth(apiKey) {
-        const { verifier, challenge } = EtsyAdapter.generatePKCE();
-        const state = uuid();
-        
-        // Store for later use
-        this.oauthState = { state, verifier, apiKey };
-
-        // Create temporary adapter to get auth URL
-        const tempAdapter = new EtsyAdapter({ api_key: apiKey });
-        const redirectUri = 'posbycirvex://oauth/callback';
-        const authUrl = tempAdapter.getAuthorizationUrl(state, redirectUri, challenge);
-
-        return { authUrl, state };
+    startEtsyOAuth(/* apiKey */) {
+        throw new Error('Etsy integration is not yet implemented');
     }
 
     /**
      * Complete Etsy OAuth flow
+     * TODO: Implement when EtsyAdapter is ready
      */
-    async completeEtsyOAuth(code, state) {
-        if (!this.oauthState || this.oauthState.state !== state) {
-            throw new Error('Invalid OAuth state');
-        }
-
-        const { verifier, apiKey } = this.oauthState;
-        const redirectUri = 'posbycirvex://oauth/callback';
-
-        const tempAdapter = new EtsyAdapter({ api_key: apiKey });
-        const tokens = await tempAdapter.exchangeCodeForToken(code, redirectUri, verifier);
-
-        // Clean up
-        delete this.oauthState;
-
-        return {
-            accessToken: tokens.accessToken,
-            refreshToken: tokens.refreshToken,
-            expiresAt: tokens.expiresAt.toISOString()
-        };
+    async completeEtsyOAuth(/* code, state */) {
+        throw new Error('Etsy integration is not yet implemented');
     }
+
+
 
     // ==========================================
     // Scheduled Sync
@@ -771,7 +747,7 @@ class EcommerceSyncManager {
 
         try {
             // Find the connection for this platform
-            let connection = null;
+            let _connection = null;
             let mapping = null;
 
             if (event.platform === 'shopify' && event.inventoryItemId) {

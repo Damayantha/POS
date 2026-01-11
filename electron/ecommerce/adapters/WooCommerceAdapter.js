@@ -103,7 +103,7 @@ class WooCommerceAdapter extends EcommerceAdapter {
                     message: 'Connected to WooCommerce store',
                     details: { storeUrl: this.storeUrl }
                 };
-            } catch (fallbackError) {
+            } catch {
                 return {
                     success: false,
                     message: error.message || 'Failed to connect to WooCommerce',
