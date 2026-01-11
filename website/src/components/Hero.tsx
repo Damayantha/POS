@@ -54,6 +54,14 @@ export function Hero() {
     }, [])
 
     const activeOS = selectedOS || os
+    
+    // Static download URLs fallback for when API doesn't return assets (draft releases)
+    const STATIC_VERSION = '1.1.0'
+    const STATIC_DOWNLOADS: Record<OSType, string> = {
+        windows: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-Setup-${STATIC_VERSION}.exe`,
+        mac: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-${STATIC_VERSION}.dmg`,
+        linux: `https://github.com/Damayantha/POS/releases/download/v${STATIC_VERSION}/Cirvex-One-${STATIC_VERSION}.AppImage`
+    }
 
     const getDownloadUrl = (targetOS: OSType): string => {
         const extMap: Record<OSType, string> = {
@@ -62,7 +70,8 @@ export function Hero() {
             linux: '.AppImage'
         }
         const asset = assets.find(a => a.name.endsWith(extMap[targetOS]))
-        return asset?.browser_download_url || `https://github.com/Damayantha/POS/releases/latest`
+        // Use API asset URL if available, otherwise use static fallback
+        return asset?.browser_download_url || STATIC_DOWNLOADS[targetOS]
     }
 
     const getFileSize = (targetOS: OSType): string => {
