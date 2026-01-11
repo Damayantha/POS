@@ -70,7 +70,7 @@ export function DownloadSection() {
         if (os === 'mac') targetExt = '.dmg'
         if (os === 'linux') targetExt = '.AppImage'
 
-        const asset = assets.find((a: any) => a.name.endsWith(targetExt))
+        const asset = assets.find((a: GitHubAsset) => a.name.endsWith(targetExt))
         if (asset) {
             setDownloadUrl(asset.browser_download_url)
         }
@@ -296,19 +296,43 @@ export function DownloadSection() {
                             }
                         </button>
                         
-                        <div className="flex gap-4 justify-center text-xs text-muted-foreground mt-2">
-                             <span>Other platforms:</span>
-                            {/* Manual fallback links if auto-detect wrong */}
+                        <div className="flex flex-wrap gap-3 justify-center mt-4">
+                             <span className="text-xs text-muted-foreground w-full text-center mb-1">Other platforms:</span>
                            {assets.length > 0 ? (
                                 <>
-                                    <a href={assets.find(a => a.name.endsWith('.exe'))?.browser_download_url} target="_blank" className="hover:text-white underline">Windows</a>
-                                    <span className="text-white/20">|</span>
-                                    <a href={assets.find(a => a.name.endsWith('.dmg'))?.browser_download_url} target="_blank" className="hover:text-white underline">macOS</a>
-                                    <span className="text-white/20">|</span>
-                                    <a href={assets.find(a => a.name.endsWith('.AppImage'))?.browser_download_url} target="_blank" className="hover:text-white underline">Linux</a>
+                                    {os !== 'windows' && (
+                                        <a 
+                                            href={assets.find(a => a.name.endsWith('.exe'))?.browser_download_url} 
+                                            target="_blank" 
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 hover:border-white/20 transition-all text-sm text-muted-foreground hover:text-white"
+                                        >
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-13.051-1.949"/></svg>
+                                            Windows
+                                        </a>
+                                    )}
+                                    {os !== 'mac' && (
+                                        <a 
+                                            href={assets.find(a => a.name.endsWith('.dmg'))?.browser_download_url} 
+                                            target="_blank" 
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 hover:border-white/20 transition-all text-sm text-muted-foreground hover:text-white"
+                                        >
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                                            macOS
+                                        </a>
+                                    )}
+                                    {os !== 'linux' && (
+                                        <a 
+                                            href={assets.find(a => a.name.endsWith('.AppImage'))?.browser_download_url} 
+                                            target="_blank" 
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 hover:border-white/20 transition-all text-sm text-muted-foreground hover:text-white"
+                                        >
+                                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 01-.004-.021l-.004-.024a1.807 1.807 0 01-.15.706.953.953 0 01-.213.335.71.71 0 00-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 00-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 00-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 00-.205.334 1.18 1.18 0 00-.09.4v.019c.002.089.008.163.027.234.004-.002.008-.006.01-.009l.007.007c.031.07.06.143.115.203l.02.021.025.02c.088.064.146.133.263.133h.004a.464.464 0 00.09-.009c.052.064.107.132.157.197-.102.053-.262.137-.338.134a.57.57 0 01-.39-.155 1.495 1.495 0 01-.347-.548 1.964 1.964 0 01-.174-.868c0-.064.003-.128.01-.192a1.904 1.904 0 01.158-.726c.106-.206.266-.403.459-.535.198-.132.418-.198.644-.198zm.529 15.136c-.1.077-.203.202-.305.264-.144.075-.271.162-.386.25-.12.091-.24.287-.286.42-.212.065-.434.13-.715.13-.9 0-1.725-.4-2.55-.4-.824 0-1.65.4-2.475.4-.413 0-.766-.063-1.053-.198.014-.159.046-.316.062-.476.06-.53.192-.964.405-1.32.191-.33.452-.6.717-.865.232-.24.48-.53.668-.794.074-.1.135-.202.191-.31.032-.064.06-.127.085-.191.011-.023.02-.045.03-.067.01-.022.019-.044.025-.067.003-.009.005-.018.007-.025.002-.008.004-.016.005-.024.002-.007.002-.013.002-.019.002-.006.002-.01.002-.016 0-.007 0-.014-.002-.022-.002-.007-.002-.016-.004-.025a.268.268 0 00-.012-.034.175.175 0 00-.017-.032c-.178-.265-.356-.53-.485-.842-.213-.51-.353-1.035-.406-1.568-.052-.526-.026-1.06.084-1.585a6.116 6.116 0 01.376-1.247c.164-.35.368-.667.607-.939a3.1 3.1 0 012.43-1.179c.405.015.744.088 1.06.2.309.111.567.265.81.455a6.116 6.116 0 01.62 3.94c-.1.59-.274 1.18-.526 1.702-.254.535-.577.99-.957 1.38a6.166 6.166 0 01-1.234 1.03c-.202.115-.456.23-.78.315-.136.035-.278.064-.428.09a7.092 7.092 0 00-.34.065c-.1.023-.18.048-.252.078-.058.025-.112.058-.17.15-.026.04-.05.082-.07.127a.625.625 0 00-.044.144c-.008.04-.012.082-.012.125 0 .059.002.116.006.172.008.112.032.223.068.33.046.134.11.265.187.389a1.62 1.62 0 00.3.35c.125.113.28.23.459.332.179.103.385.198.615.266.23.067.48.099.74.097l.054-.002.055-.003h.008l.063-.005.067-.007c.024-.003.047-.006.072-.01l.073-.01c.024-.004.05-.01.074-.015.06-.012.12-.025.18-.042.058-.016.118-.037.178-.058.055-.02.111-.04.168-.062.028-.012.058-.025.086-.038.03-.014.058-.03.086-.045.27-.131.526-.319.764-.52zm-2.905-6.15l-.016-.016a.174.174 0 00.016.016z"/></svg>
+                                            Linux
+                                        </a>
+                                    )}
                                 </>
                            ) : (
-                                <a href="https://github.com/Damayantha/POS/releases/latest" target="_blank" className="hover:text-white underline">View all versions on GitHub</a>
+                                <a href="https://github.com/Damayantha/POS/releases/latest" target="_blank" className="text-xs hover:text-white underline text-muted-foreground">View all versions on GitHub</a>
                            )}
                         </div>
 

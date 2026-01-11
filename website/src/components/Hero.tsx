@@ -2,22 +2,105 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import Link from 'next/link'
-import { ArrowRight, CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Download, Monitor, Apple, Terminal } from 'lucide-react'
+
+interface GitHubAsset {
+    name: string;
+    browser_download_url: string;
+    size: number;
+}
+
+interface ReleaseData {
+    tag_name: string;
+    assets: GitHubAsset[];
+}
+
+type OSType = 'windows' | 'mac' | 'linux';
 
 export function Hero() {
-    const [os, setOS] = useState<'Windows' | 'macOS' | 'Linux' | 'App'>('Windows')
+    const [os, setOS] = useState<OSType>('windows')
+    const [selectedOS, setSelectedOS] = useState<OSType | null>(null)
+    const [version, setVersion] = useState('')
+    const [assets, setAssets] = useState<GitHubAsset[]>([])
+    const [loading, setLoading] = useState(false)
 
+    // Detect OS on mount
     useEffect(() => {
         if (typeof window === 'undefined') return
         const userAgent = window.navigator.userAgent.toLowerCase()
-        setTimeout(() => {
-            if (userAgent.includes('win')) setOS('Windows')
-            else if (userAgent.includes('mac')) setOS('macOS')
-            else if (userAgent.includes('linux')) setOS('Linux')
-            else setOS('App')
+        // Use setTimeout to avoid synchronous setState in effect
+        const timer = setTimeout(() => {
+            if (userAgent.includes('mac')) setOS('mac')
+            else if (userAgent.includes('linux')) setOS('linux')
+            // windows is default, no need to set
         }, 0)
+        return () => clearTimeout(timer)
     }, [])
+
+    // Fetch Latest Release
+    useEffect(() => {
+        const fetchRelease = async () => {
+            try {
+                const res = await fetch('https://api.github.com/repos/Damayantha/POS/releases/latest')
+                if (!res.ok) return
+                const data: ReleaseData = await res.json()
+                setVersion(data.tag_name)
+                setAssets(data.assets)
+            } catch (e) {
+                console.error('Failed to fetch release info', e)
+            }
+        }
+        fetchRelease()
+    }, [])
+
+    const activeOS = selectedOS || os
+
+    const getDownloadUrl = (targetOS: OSType): string => {
+        const extMap: Record<OSType, string> = {
+            windows: '.exe',
+            mac: '.dmg',
+            linux: '.AppImage'
+        }
+        const asset = assets.find(a => a.name.endsWith(extMap[targetOS]))
+        return asset?.browser_download_url || `https://github.com/Damayantha/POS/releases/latest`
+    }
+
+    const getFileSize = (targetOS: OSType): string => {
+        const extMap: Record<OSType, string> = {
+            windows: '.exe',
+            mac: '.dmg',
+            linux: '.AppImage'
+        }
+        const asset = assets.find(a => a.name.endsWith(extMap[targetOS]))
+        if (!asset) return ''
+        const sizeMB = (asset.size / (1024 * 1024)).toFixed(1)
+        return `${sizeMB} MB`
+    }
+
+    const getOSLabel = (targetOS: OSType): string => {
+        const labels: Record<OSType, string> = {
+            windows: 'Windows',
+            mac: 'macOS',
+            linux: 'Linux'
+        }
+        return labels[targetOS]
+    }
+
+    const getOSIcon = (targetOS: OSType) => {
+        const iconProps = { size: 16 }
+        switch(targetOS) {
+            case 'mac': return <Apple {...iconProps} />
+            case 'linux': return <Terminal {...iconProps} />
+            default: return <Monitor {...iconProps} />
+        }
+    }
+
+    const handleDownload = () => {
+        setLoading(true)
+        const url = getDownloadUrl(activeOS)
+        window.open(url, '_blank')
+        setTimeout(() => setLoading(false), 1000)
+    }
 
     return (
         <section className="relative min-h-screen flex items-center pt-20 overflow-hidden">
@@ -38,7 +121,7 @@ export function Hero() {
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                         </span>
-                        v1.0 Now Available
+                        {version || 'v1.1.0'} Now Available
                     </div>
 
                     <h1 className="text-5xl lg:text-7xl font-bold leading-tight mb-6">
@@ -50,23 +133,37 @@ export function Hero() {
 
                     <p className="text-lg text-muted-foreground mb-8 max-w-xl leading-relaxed">
                         Experience the future of point-of-sale systems. Offline-first, reliable, and designed for speed.
-                        Manage inventory, sales, and customers with a production-ready Windows application.
+                        Manage inventory, sales, and customers with a production-ready desktop application.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-4 mb-12">
-                        <Link
-                            href="#download"
-                            className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-white/90 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                    <div className="flex flex-col gap-4 mb-8">
+                        {/* Primary Download Button */}
+                        <button
+                            onClick={handleDownload}
+                            disabled={loading}
+                            className="inline-flex items-center justify-center gap-3 bg-primary text-primary-foreground px-8 py-4 rounded-full font-bold text-lg hover:bg-white/90 transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] w-fit cursor-pointer disabled:opacity-70"
                         >
-                            Download for {os}
-                            <ArrowRight size={20} />
-                        </Link>
-                        <Link
-                            href="#features"
-                            className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full font-bold text-lg border border-border hover:bg-white/5 transition-all text-foreground"
-                        >
-                            View Features
-                        </Link>
+                            <Download size={20} />
+                            Download for {getOSLabel(activeOS)}
+                            {getFileSize(activeOS) && (
+                                <span className="text-sm opacity-70">({getFileSize(activeOS)})</span>
+                            )}
+                        </button>
+
+                        {/* Platform Selector */}
+                        <div className="flex items-center gap-2 text-sm">
+                            <span className="text-muted-foreground">Also available for:</span>
+                            {(['windows', 'mac', 'linux'] as OSType[]).filter(p => p !== activeOS).map(platform => (
+                                <button
+                                    key={platform}
+                                    onClick={() => setSelectedOS(platform)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/10 hover:bg-white/5 hover:border-white/20 transition-all text-muted-foreground hover:text-white cursor-pointer"
+                                >
+                                    {getOSIcon(platform)}
+                                    {getOSLabel(platform)}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="flex items-center gap-6 text-sm text-muted-foreground">
