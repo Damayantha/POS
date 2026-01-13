@@ -8,11 +8,20 @@ const { getDatabase } = require('../database/init');
 const DEFAULT_API_KEY = process.env.GEMINI_API_KEY || null;
 const MODEL_NAME = 'gemini-2.0-flash-lite';
 
+// Rate limiting configuration
+const RATE_LIMIT_PER_MINUTE = 10;
+const RATE_LIMIT_PER_DAY = 100;
+
 class GeminiManager {
     constructor() {
         this.currentModel = null;
         this.apiKey = DEFAULT_API_KEY;
         this.isEnabled = true;
+        
+        // Rate limiting tracking
+        this.requestTimestamps = []; // For per-minute tracking
+        this.dailyRequestCount = 0;
+        this.lastDailyReset = null;
     }
 
     async init() {
@@ -82,6 +91,73 @@ class GeminiManager {
         } catch (error) {
              console.error('[GeminiManager] Config update failed:', error);
         }
+    }
+
+    /**
+     * Check if the request is within rate limits
+     * @returns {Object} { allowed: boolean, reason?: string, remaining?: { minute: number, daily: number } }
+     */
+    checkRateLimit() {
+        const now = Date.now();
+        const today = new Date().toDateString();
+
+        // Reset daily counter if new day
+        if (this.lastDailyReset !== today) {
+            this.dailyRequestCount = 0;
+            this.lastDailyReset = today;
+            console.log('[GeminiManager] Daily request counter reset');
+        }
+
+        // Clean up old timestamps (older than 1 minute)
+        const oneMinuteAgo = now - 60000;
+        this.requestTimestamps = this.requestTimestamps.filter(ts => ts > oneMinuteAgo);
+
+        const remainingMinute = RATE_LIMIT_PER_MINUTE - this.requestTimestamps.length;
+        const remainingDaily = RATE_LIMIT_PER_DAY - this.dailyRequestCount;
+
+        // Check per-minute limit
+        if (this.requestTimestamps.length >= RATE_LIMIT_PER_MINUTE) {
+            return {
+                allowed: false,
+                reason: `Rate limit exceeded. Please wait a moment before sending another message. (${RATE_LIMIT_PER_MINUTE} requests per minute)`,
+                remaining: { minute: 0, daily: remainingDaily }
+            };
+        }
+
+        // Check daily limit
+        if (this.dailyRequestCount >= RATE_LIMIT_PER_DAY) {
+            return {
+                allowed: false,
+                reason: `Daily limit reached (${RATE_LIMIT_PER_DAY} requests). AI features will reset tomorrow.`,
+                remaining: { minute: remainingMinute, daily: 0 }
+            };
+        }
+
+        return {
+            allowed: true,
+            remaining: { minute: remainingMinute, daily: remainingDaily }
+        };
+    }
+
+    /**
+     * Record a request for rate limiting
+     */
+    recordRequest() {
+        this.requestTimestamps.push(Date.now());
+        this.dailyRequestCount++;
+        console.log(`[GeminiManager] Request recorded. Today: ${this.dailyRequestCount}/${RATE_LIMIT_PER_DAY}, This minute: ${this.requestTimestamps.length}/${RATE_LIMIT_PER_MINUTE}`);
+    }
+
+    /**
+     * Get current rate limit status
+     */
+    getRateLimitStatus() {
+        const check = this.checkRateLimit();
+        return {
+            perMinute: { used: this.requestTimestamps.length, limit: RATE_LIMIT_PER_MINUTE },
+            perDay: { used: this.dailyRequestCount, limit: RATE_LIMIT_PER_DAY },
+            allowed: check.allowed
+        };
     }
 
     async generateInsights(salesData) {
@@ -169,6 +245,12 @@ class GeminiManager {
     }
 
     async chatStream(history, message, onChunk, options = {}) {
+        // Check rate limit FIRST
+        const rateLimitCheck = this.checkRateLimit();
+        if (!rateLimitCheck.allowed) {
+            throw new Error(rateLimitCheck.reason);
+        }
+
         if (!this.isEnabled || !this.currentModel) {
             // Try to re-init if just missing model
             if (this.currentModel === null && this.isEnabled) {
@@ -178,6 +260,9 @@ class GeminiManager {
                 throw new Error('AI features are disabled or initialization failed');
             }
         }
+
+        // Record request for rate limiting
+        this.recordRequest();
 
         const { model, images } = options;
         
