@@ -2,9 +2,10 @@ const { ChatGoogleGenerativeAI } = require('@langchain/google-genai');
 const { HumanMessage, SystemMessage, AIMessage } = require('@langchain/core/messages');
 const { getDatabase } = require('../database/init');
 
-// API Key must be configured in Settings -> AI Settings
-// DO NOT hardcode API keys - they will be exposed in the repository
-const DEFAULT_API_KEY = null;
+// API Key priority: 1) User settings, 2) Environment variable, 3) null (disabled)
+// For development: set GEMINI_API_KEY in your .env file
+// For end users: configure in Settings -> AI Settings
+const DEFAULT_API_KEY = process.env.GEMINI_API_KEY || null;
 const MODEL_NAME = 'gemini-2.0-flash-lite';
 
 class GeminiManager {
