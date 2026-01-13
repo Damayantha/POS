@@ -12,3 +12,22 @@ Thumbs.db
 .firebase
 website/.next
 website/.firebase
+
+# Environment & Secrets
+.env
+.env.*
+*.env
+.env.local
+.env.production
+.env.development
+
+# Firebase/Google credentials
+*firebase*adminsdk*.json
+*service*account*.json
+*credentials*.json
+*.pem
+*.p12
+
+# API Keys
+secrets/
+private/
