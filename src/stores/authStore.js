@@ -20,8 +20,13 @@ export const useAuthStore = create((set, get) => ({
         try {
             const employee = await window.electronAPI.employees.verifyPin({ id: employeeId, pin });
             if (employee) {
-                sessionStorage.setItem('pos_auth', JSON.stringify(employee));
-                set({ currentEmployee: employee, isAuthenticated: true });
+                // Remove sensitive data before storing in sessionStorage
+                // This fixes CodeQL "clear text storage of sensitive information" alert
+                const safeEmployee = { ...employee };
+                delete safeEmployee.pin;
+                delete safeEmployee.password;
+                sessionStorage.setItem('pos_auth', JSON.stringify(safeEmployee));
+                set({ currentEmployee: safeEmployee, isAuthenticated: true });
                 return { success: true };
             }
             return { success: false, error: 'Invalid PIN' };

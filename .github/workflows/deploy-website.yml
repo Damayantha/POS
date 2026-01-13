@@ -7,6 +7,9 @@ on:
       - "website/**"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest

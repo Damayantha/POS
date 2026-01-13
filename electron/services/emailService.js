@@ -2,6 +2,23 @@ const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
 
+/**
+ * Properly strip HTML tags from a string.
+ * Uses a loop to ensure all tags are removed (fixes CodeQL incomplete multi-character sanitization)
+ */
+function stripHtmlTags(html) {
+    if (!html) return '';
+    let text = html;
+    let previous;
+    // Loop until no more tags are found
+    do {
+        previous = text;
+        text = text.replace(/<[^>]*>/g, '');
+    } while (text !== previous);
+    // Also clean up extra whitespace
+    return text.replace(/\s+/g, ' ').trim();
+}
+
 let transporter = null;
 
 // Initialize email transporter with SMTP settings
@@ -41,7 +58,8 @@ async function sendEmail({ to, subject, html, text, attachments = [] }) {
         to,
         subject,
         html,
-        text: text || html.replace(/<[^>]*>/g, ''),
+        // Use a loop to properly strip HTML tags (fixes CodeQL multi-character sanitization)
+        text: text || stripHtmlTags(html),
         attachments,
     };
 
